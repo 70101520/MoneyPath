@@ -35,11 +35,32 @@ services:
       SETUP_TOKEN: ${SETUP_TOKEN:?Set SETUP_TOKEN in .env}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
       ALLOW_INSECURE_COOKIE: ${ALLOW_INSECURE_COOKIE:-false}
+      JOB_SECRET: ${JOB_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     ports:
       - '${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000'
     depends_on:
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+  notifier:
+    image: moneypath-app
+    command: ['node', 'notification-worker.mjs']
+    environment:
+      JOB_SECRET: ${JOB_SECRET:-}
+      NOTIFICATION_JOB_URL: http://app:3000/api/jobs/notifications
+      NOTIFICATION_INTERVAL_MS: ${NOTIFICATION_INTERVAL_MS:-21600000}
+    depends_on:
+      app:
+        condition: service_started
     restart: unless-stopped
 volumes:
   postgres_data:

@@ -37,6 +37,29 @@ model User {
   investmentEvents InvestmentEvent[]
   goals Goal[]
   apiTokens ApiToken[]
+  pushSubscriptions PushSubscription[]
+  notificationDeliveries NotificationDelivery[]
+}
+model PushSubscription {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payload String
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  @@index([userId, createdAt])
+}
+model NotificationDelivery {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationKey String
+  channel String
+  status String
+  attemptedAt DateTime @default(now())
+  error String?
+  @@unique([userId, notificationKey, channel])
+  @@index([userId, attemptedAt])
 }
 model ApiToken {
   id String @id

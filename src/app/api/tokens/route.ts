@@ -11,7 +11,7 @@ export async function GET() {
   const tokens = await db.apiToken.findMany({
     where: { userId: user.id },
     select: {
-      id: false,
+      id: true,
       label: true,
       createdAt: true,
       expiresAt: true,
@@ -37,6 +37,26 @@ export async function POST(request: Request) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Unable to create token' },
+      { status: 400 },
+    );
+  }
+}
+export async function DELETE(request: Request) {
+  try {
+    checkOrigin(request);
+    const user = await currentUser();
+    if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+    const { id } = z.object({ id: z.string().length(64) }).parse(await request.json());
+    const result = await db.apiToken.updateMany({
+      where: { id, userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (!result.count)
+      return NextResponse.json({ error: 'Active token not found' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Unable to revoke token' },
       { status: 400 },
     );
   }

@@ -329,7 +329,7 @@ export function Workspace({
             </div>
           )}
           {active === 'integrations' ? (
-            <Integrations demo={demo} />
+            <Integrations demo={demo} data={data} />
           ) : active === 'assistant' ? (
             <FinanceAssistant data={data} />
           ) : ['investments', 'goals', 'what-if'].includes(active) ? (

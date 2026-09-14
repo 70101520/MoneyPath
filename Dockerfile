@@ -15,6 +15,7 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 RUN groupadd --system --gid 1001 moneypath && useradd --system --uid 1001 --gid moneypath moneypath
 COPY --from=build --chown=moneypath:moneypath /app/.next/standalone ./
 COPY --from=build --chown=moneypath:moneypath /app/.next/static ./.next/static
+COPY --from=build --chown=moneypath:moneypath /app/scripts/notification-worker.mjs ./notification-worker.mjs
 USER moneypath
 EXPOSE 3000
 CMD ["node", "server.js"]
