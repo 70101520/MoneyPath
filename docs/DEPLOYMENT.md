@@ -8,6 +8,8 @@ The completed Phase 4 Docker build and all 68 tests passed on the VM. Ten migrat
 
 The `moneypath-notifier` worker is running and its authenticated delivery job completed successfully. Anonymous job execution was rejected with HTTP 401. VM-only job and VAPID keys were generated with restricted environment-file permissions. SMTP variables remain empty until an email provider account is configured.
 
+Dynamic personal guidance revision `079df2d` is deployed. Its Docker build and all 70 tests passed, followed by desktop/mobile LAN checks. The database and matching environment backup is `/opt/moneypath/backups/before-guidance-20260914T185624Z.*`; all 25 application-table fingerprints matched before and after deployment.
+
 The current Docker build and all 66 finance/security/database tests passed on the VM. Nine migrations are applied. Before migration, the app was stopped and its database and matching environment were backed up under `/opt/moneypath/backups/before-phase3-complete-20260914T180955Z.*`. Full row counts/digests for all 18 pre-existing application tables matched after migration. The old image is tagged `moneypath-app:before-phase3-complete`.
 
 Final LAN Chromium checks passed on desktop and mobile across all planning, personal-balance, investment, goal, simulator, assistant and integration screens. Authentication redirects, anonymous API rejection, purchase simulation and transaction-form checks passed without client errors or page overflow.
