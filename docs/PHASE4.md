@@ -17,3 +17,7 @@ Phase 4 is implemented with the deterministic finance engine as the authoritativ
 The code is complete. SMTP delivery remains disabled until the owner supplies an SMTP host/account. Web Push activates when a VAPID key pair is configured. CSV imports work without a bank connection. No external provider has access to financial data by default, and credentials never belong in Git.
 
 An optional generative-AI provider can later rephrase the existing calculated answer object. It must not calculate financial values, write transactions or receive secrets that are unnecessary for the explanation.
+
+## Validation
+
+Revision `39788d5` is deployed on the testing VM. The optimized Docker build, all 68 tests, desktop/mobile LAN checks, protected-route checks and unauthorized notification-job rejection passed. A pre-migration database/environment backup was created at timestamp `20260914T182715Z`; all 23 pre-existing application-table fingerprints matched after migration. The scheduled notification worker is running successfully.
