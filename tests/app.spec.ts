@@ -18,6 +18,12 @@ test('sample dashboard and all Phase 1 navigation render without client errors',
     'Financial calendar',
     'Budgets',
     'Spending analysis',
+    'Salary plan',
+    'Payment priorities',
+    'Can I buy this?',
+    'Get out of debt',
+    'Notifications',
+    'Reports',
   ]) {
     await page.getByRole('button', { name: section, exact: true }).click();
     await expect(page.locator('main h1')).toBeVisible();
@@ -53,6 +59,33 @@ test('protected routes redirect and cross-origin mutations fail', async ({ page,
   });
   expect(res.status()).toBe(400);
 });
+test('Phase 2 screens and purchase preview fit mobile without client errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/demo');
+  for (const section of [
+    'Salary plan',
+    'Payment priorities',
+    'Can I buy this?',
+    'Get out of debt',
+    'Notifications',
+    'Reports',
+  ]) {
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.getByRole('button', { name: section, exact: true }).click();
+    await expect(page.locator('.planning')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `artifacts/phase2-${section.replace(/[^a-z]/gi, '').toLowerCase()}-mobile.png`,
+      fullPage: true,
+      animations: 'disabled',
+    });
+  }
+  expect(errors).toEqual([]);
+});
 test('owner authentication, persisted entry, and card repayment work end to end', async ({
   page,
   request,
@@ -61,6 +94,9 @@ test('owner authentication, persisted entry, and card repayment work end to end'
   if (url.port !== '55432' || url.pathname !== '/moneypath_test_utf8')
     throw new Error('Refusing non-test database');
   const email = 'browser-owner@test.invalid';
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true });
+  });
   const password = 'test-only-owner-password-2026';
   const origin = 'http://localhost:3100';
   await request.post('/api/auth', {
@@ -148,6 +184,66 @@ test('owner authentication, persisted entry, and card repayment work end to end'
   const exported = await api.get('/api/export');
   expect(exported.status()).toBe(200);
   expect(exported.headers()['content-type']).toContain('text/csv');
+  await send({
+    kind: 'settings',
+    name: 'Browser test',
+    salaryDay: 10,
+    monthlyIncome: 5500000,
+    essentialReserve: 0,
+    emergencyReserve: 0,
+    goalReserve: 0,
+    extraDebtReserve: 0,
+  });
+  const salary = await send({
+    kind: 'income',
+    amount: 5500000,
+    date,
+    source: 'Salary',
+    recurring: true,
+    status: 'RECEIVED',
+    accountId,
+  });
+  await page.getByRole('button', { name: 'Salary plan', exact: true }).click();
+  await page
+    .getByRole('combobox', { name: 'Received salary', exact: true })
+    .selectOption(salary.id);
+  await page.getByLabel('Remaining essential living (INR)', { exact: true }).fill('100');
+  await page.getByRole('button', { name: 'Accept money plan', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Plan saved.');
+  await page.reload();
+  await expect(page.getByLabel('Remaining essential living (INR)', { exact: true })).toHaveValue(
+    '100',
+  );
+  await page.getByRole('button', { name: 'Can I buy this?', exact: true }).click();
+  await page.getByLabel('Item', { exact: true }).fill('Preview phone');
+  await page.getByLabel('Purchase price (INR)', { exact: true }).fill('500');
+  await page
+    .getByRole('combobox', { name: 'Funding account', exact: true })
+    .selectOption(accountId);
+  const beforePreview = (await (await api.get('/api/snapshot')).json()).data;
+  await page.getByRole('button', { name: 'Simulate purchase', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Green|Yellow|Orange|Red/ })).toBeVisible();
+  const afterPreview = (await (await api.get('/api/snapshot')).json()).data;
+  expect(afterPreview.accounts).toEqual(beforePreview.accounts);
+  expect(afterPreview.expenses).toEqual(beforePreview.expenses);
+  await send({
+    kind: 'expense',
+    cardId: card.id,
+    amount: 100000,
+    date,
+    category: 'Other',
+    method: 'Credit Card',
+    essentiality: 'WANT',
+  });
+  await page.getByRole('button', { name: 'Get out of debt', exact: true }).click();
+  await page.getByLabel('Monthly debt payment (INR)', { exact: true }).fill('500');
+  await page.getByLabel(/I confirm these forecast assumptions/).check();
+  await page.getByRole('button', { name: 'Save debt scenario', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Plan saved.');
+  await page.reload();
+  await expect(page.getByLabel('Monthly debt payment (INR)', { exact: true })).toHaveValue('500');
+  await page.getByRole('button', { name: 'Reports', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Risk history', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await api.get('/api/snapshot')).status()).toBe(401);

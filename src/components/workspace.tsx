@@ -44,6 +44,8 @@ import {
 } from '@/lib/finance';
 import { RecordForm } from './record-form';
 import { Planning } from './planning';
+import { Decisions } from './decisions';
+import { planningNotifications } from '@/lib/decision';
 const navigation = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'income', label: 'Income', icon: ArrowDownLeft },
@@ -56,6 +58,12 @@ const navigation = [
   { id: 'calendar', label: 'Financial calendar', icon: CalendarDays },
   { id: 'budgets', label: 'Budgets', icon: Wallet },
   { id: 'spending', label: 'Spending analysis', icon: ReceiptText },
+  { id: 'salary-plan', label: 'Salary plan', icon: Wallet },
+  { id: 'priority', label: 'Payment priorities', icon: ArrowLeftRight },
+  { id: 'purchase', label: 'Can I buy this?', icon: ShieldCheck },
+  { id: 'debt-plan', label: 'Get out of debt', icon: TrendingDown },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'reports', label: 'Reports', icon: ReceiptText },
 ];
 const colors = ['#337569', '#91ada1', '#d7b787', '#8295aa', '#b5bdc5', '#e0d5c1'];
 export function Workspace({
@@ -206,11 +214,11 @@ export function Workspace({
             </span>
             <button
               className="icon-button notification-button"
-              onClick={() => go('calendar')}
+              onClick={() => go('notifications')}
               aria-label="Upcoming payment notifications"
             >
               <Bell size={19} />
-              {upcoming.length > 0 && <i />}
+              {planningNotifications(data).length > 0 && <i />}
             </button>
             <span className="avatar small">{data.settings.name.slice(0, 1)}</span>
           </div>
@@ -307,7 +315,23 @@ export function Workspace({
               </button>
             </div>
           )}
-          {active === 'budgets' || active === 'spending' ? (
+          {[
+            'salary-plan',
+            'priority',
+            'purchase',
+            'debt-plan',
+            'notifications',
+            'reports',
+          ].includes(active) ? (
+            <Decisions
+              key={active}
+              data={data}
+              section={active}
+              demo={demo}
+              navigate={go}
+              pay={payment}
+            />
+          ) : active === 'budgets' || active === 'spending' ? (
             <Planning data={data} section={active} demo={demo} />
           ) : active === 'dashboard' ? (
             <>
@@ -858,6 +882,12 @@ export function Workspace({
   );
 }
 const descriptions: Record<string, string> = {
+  'salary-plan': 'Give your received salary a clear purpose.',
+  priority: 'Protect essentials while deciding what to pay next.',
+  purchase: 'Check the effect before you spend.',
+  'debt-plan': 'Compare a path out of card debt using your assumptions.',
+  notifications: 'Upcoming bills, spending limits and reserve reminders.',
+  reports: 'Understand recorded cash flow, debt progress and risk history.',
   budgets: 'Set monthly limits and see which categories need attention.',
   spending: 'Understand recorded purchases, repayments and month-to-month changes.',
   income: 'Track what has arrived and what you are expecting. Only received money adds to cash.',

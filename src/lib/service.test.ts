@@ -70,6 +70,7 @@ describe.skipIf(!enabled)('PostgreSQL transactional accounting', () => {
     await db.audit.deleteMany({ where: { userId } });
     await db.payment.deleteMany({ where: { userId } });
     await db.expense.deleteMany({ where: { userId } });
+    await db.salaryPlan.deleteMany({ where: { userId } });
     await db.income.deleteMany({ where: { userId } });
     await db.emi.deleteMany({ where: { card: { userId } } });
     await db.cardStatement.deleteMany({ where: { card: { userId } } });
@@ -116,6 +117,88 @@ describe.skipIf(!enabled)('PostgreSQL transactional accounting', () => {
       await db.audit.deleteMany({ where: { userId: outsider.id } });
       await db.user.delete({ where: { id: outsider.id } });
     }
+  });
+  it('accepts salary allocations once, preserves cash, rejects stale plans and stores risk metrics', async () => {
+    const salary = await run({
+      kind: 'income',
+      amount: 100000,
+      date,
+      source: 'Salary',
+      recurring: true,
+      status: 'RECEIVED',
+      accountId,
+    });
+    let before = await readData(userId);
+    const command: Command = {
+      kind: 'salaryPlan',
+      incomeId: salary!.id,
+      revision: before.revision!,
+      essentialReserve: 1000,
+      emergencyReserve: 1000,
+      goalReserve: 1000,
+      extraDebtReserve: 1000,
+    };
+    const key = randomUUID();
+    const result = await run(command, key);
+    expect((await run(command, key))?.duplicate).toBe(true);
+    let after = await readData(userId);
+    expect(after.accounts).toEqual(before.accounts);
+    expect(after.incomes).toEqual(before.incomes);
+    expect(after.salaryPlans![0].id).toBe(result?.id);
+    expect(after.settings.essentialReserve).toBe(1000);
+    expect(after.risks![0].version).toBe('planning-v2');
+    expect(after.risks![0].metrics?.cash).toBe(after.accounts[0].balance);
+    await expect(run({ ...command, essentialReserve: 2000 })).rejects.toThrow('records changed');
+    await expect(
+      run({ ...command, revision: after.revision!, essentialReserve: 1000000000 }),
+    ).rejects.toThrow('exceeds current cash');
+    await run({ ...command, revision: after.revision!, essentialReserve: 2000 });
+    after = await readData(userId);
+    expect(after.salaryPlans).toHaveLength(1);
+    expect(after.settings.essentialReserve).toBe(2000);
+    // Restore fixture settings; these tests must not change the later accounting fixtures.
+    await run({ kind: 'settings', ...before.settings } as Command);
+    await db.salaryPlan.deleteMany({ where: { incomeId: salary!.id } });
+    await db.income.delete({ where: { id: salary!.id } });
+    await db.account.update({ where: { id: accountId }, data: { balance: { decrement: 100000 } } });
+  });
+  it('rejects expected salary allocation and persists debt assumptions without moving money', async () => {
+    const expected = await run({
+      kind: 'income',
+      amount: 10000,
+      date,
+      source: 'Salary',
+      recurring: true,
+      status: 'EXPECTED',
+    });
+    const before = await readData(userId);
+    await expect(
+      run({
+        kind: 'salaryPlan',
+        incomeId: expected!.id,
+        revision: before.revision!,
+        essentialReserve: 0,
+        emergencyReserve: 0,
+        goalReserve: 0,
+        extraDebtReserve: 0,
+      }),
+    ).rejects.toThrow();
+    const command: Command = {
+      kind: 'debtPlan',
+      monthlyPayment: 10000,
+      strategy: 'CUSTOM',
+      assumptions: [{ cardId, annualRateBps: 4200, minimum: 1000, rank: 1 }],
+    };
+    const key = randomUUID();
+    await run(command, key);
+    expect((await run(command, key))?.duplicate).toBe(true);
+    const after = await readData(userId);
+    expect(after.debtPlan?.strategy).toBe('CUSTOM');
+    expect(after.accounts).toEqual(before.accounts);
+    expect(after.cards).toEqual(before.cards);
+    await expect(
+      run({ ...command, assumptions: [{ ...command.assumptions[0], cardId: 'not-owned' }] }),
+    ).rejects.toThrow();
   });
   it('purchase then repayment changes debt and cash but records one expense', async () => {
     await run({

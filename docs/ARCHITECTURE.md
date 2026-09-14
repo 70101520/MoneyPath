@@ -18,6 +18,9 @@ erDiagram
   User ||--o{ Audit : audits
   User ||--o{ RiskSnapshot : evaluates
   User ||--o{ Budget : plans
+  User ||--o{ SalaryPlan : accepts
+  Income ||--o| SalaryPlan : funds
+  User ||--o| DebtPlan : models
   Account ||--o{ Income : credits
   Account ||--o{ Expense : debits
   Account ||--o{ Payment : funds
@@ -60,7 +63,7 @@ Sensitive free text and optional card last four are encrypted with AES-256-GCM u
 
 ## Delivery phases
 
-Current status: Phase 1 complete; Phase 2 budgets and spending analysis implemented. See [PHASE2.md](PHASE2.md) for delivered and remaining increments. Budget limits are monthly tracking targets, not additional cash reservations; missing budgets remain unknown. Budget writes use the existing authenticated, audited, idempotent records API.
+Current status: Phases 1 and 2 implemented; Phases 3 and 4 pending. See [PHASE2.md](PHASE2.md) for planning contracts, risk v2 rules and model assumptions. Budget, salary-plan, debt-plan and priority-cost writes use the authenticated, audited, idempotent records API. Salary acceptance also validates a source-data fingerprint in a serializable transaction. Budget limits are monthly tracking targets, not additional cash reservations; missing budgets remain unknown. Risk snapshots retain versioned rules and, for new snapshots, tracked cash/debt/assets/net worth.
 
 1. **Foundation and Phase 1:** architecture, schema, deterministic calculations/tests, local auth, accounts/income/commitments/expenses/cards/EMI/payments, dashboard, calendar, basic risk, Docker, operational README. Validate transaction accounting and responsive UI.
 2. **Planning:** budgets, spending analysis, salary allocation acceptance, payment priority, purchase simulation, debt payoff forecasts, notification rules, richer history reports.

@@ -17,6 +17,9 @@ export const dateLabel = (date: string | Date) =>
 export function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
+export function localDay(value: string) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(value));
+}
 export function day(value: string | Date) {
   return new Date(
     typeof value === 'string'
@@ -160,6 +163,7 @@ export type CardData = {
   dueDate: string;
   minimumDue: number;
   interestBps: number;
+  lateFee?: number | null;
   status: string;
   emis: EmiData[];
   statements?: {
@@ -171,6 +175,7 @@ export type CardData = {
   }[];
 };
 export type CommitmentData = {
+  lateFee?: number | null;
   id: string;
   name: string;
   category: string;
@@ -215,6 +220,31 @@ export type PaymentData = {
   notes: string | null;
 };
 export type Data = {
+  revision?: string;
+  salaryPlans?: {
+    id: string;
+    incomeId: string;
+    essentialReserve: number;
+    emergencyReserve: number;
+    goalReserve: number;
+    extraDebtReserve: number;
+    cashAtAcceptance: number;
+    mandatoryAtAcceptance: number;
+    acceptedAt: string;
+  }[];
+  debtPlan?: {
+    monthlyPayment: number;
+    strategy: 'AVALANCHE' | 'SNOWBALL' | 'CUSTOM';
+    assumptions: { cardId: string; annualRateBps: number; minimum: number; rank: number }[];
+  } | null;
+  risks?: {
+    id: string;
+    score: number | null;
+    version: string;
+    createdAt: string;
+    rules: RiskRule[];
+    metrics: { cash: number; debt: number; assets: number; netWorth: number } | null;
+  }[];
   budgets?: { id: string; month: string; category: string; amount: number }[];
   settings: Settings;
   accounts: AccountData[];
@@ -456,6 +486,91 @@ export function calculate(data: Data, asOf = today()) {
     essentials: s.essentialReserve,
     raw: safe.raw,
   });
+  // v2 adds explainable rules only when the required recorded inputs exist.
+  if (risk.score !== null) {
+    const key = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+    const budgets = (data.budgets ?? []).filter((b) => b.month === month);
+    const over = budgets.filter(
+      (b) =>
+        expenses
+          .filter((e) => key(e.category) === key(b.category))
+          .reduce((n, e) => n + e.amount, 0) > b.amount,
+    );
+    if (over.length)
+      risk.rules.push({
+        id: 'budget-overrun',
+        points: 10,
+        reason: `Recorded spending exceeds ${over.length} category budget(s)`,
+      });
+    if (income > 0 && expenses.reduce((n, e) => n + e.amount, 0) > income)
+      risk.rules.push({
+        id: 'expenses-income',
+        points: 10,
+        reason: 'Recorded expenses exceed received income this month',
+      });
+    if (
+      income > 0 &&
+      expenses.filter((e) => e.accountId).reduce((n, e) => n + e.amount, 0) + debtPaid > income
+    )
+      risk.rules.push({
+        id: 'negative-account-flow',
+        points: 10,
+        reason: 'Recorded account outflows exceed received income this month',
+      });
+    if (newSpending > debtPaid)
+      risk.rules.push({
+        id: 'new-debt-exceeds-payments',
+        points: 10,
+        reason: 'Recorded new card debt exceeds repayments this month',
+      });
+    else if (debtPaid > newSpending)
+      risk.rules.push({
+        id: 'debt-reduction',
+        points: -5,
+        reason: 'Recorded repayments exceed new card debt this month',
+      });
+    const prior = (data.risks ?? []).find(
+      (r) => localDay(r.createdAt).slice(0, 7) < month && r.metrics !== null,
+    );
+    if (prior?.metrics && debt > prior.metrics.debt)
+      risk.rules.push({
+        id: 'debt-trend',
+        points: 5,
+        reason: 'Card debt is higher than the last recorded prior-month snapshot',
+      });
+    const transfers = data.payments
+      .filter(
+        (p) =>
+          p.date.slice(0, 7) === month &&
+          p.commitmentId &&
+          data.commitments.some(
+            (c) => c.id === p.commitmentId && ['SIP', 'Gold Saving Plan'].includes(c.category),
+          ),
+      )
+      .reduce((n, p) => n + p.amount, 0);
+    if (income > 0 && transfers === 0)
+      risk.rules.push({
+        id: 'no-investment-contribution',
+        points: 5,
+        reason:
+          'No investment contribution recorded against received income this month; other savings may be unrecorded',
+      });
+    risk.score = Math.max(
+      0,
+      Math.min(
+        100,
+        risk.rules.reduce((n, r) => n + r.points, 0),
+      ),
+    );
+    risk.label =
+      risk.score <= 30
+        ? 'Low risk'
+        : risk.score <= 50
+          ? 'Moderate'
+          : risk.score <= 70
+            ? 'High risk'
+            : 'Critical';
+  }
   const categories = Object.entries(
     expenses.reduce<Record<string, number>>((acc, e) => {
       acc[e.category] = (acc[e.category] ?? 0) + e.amount;
@@ -482,6 +597,7 @@ export function calculate(data: Data, asOf = today()) {
     emiReserve,
     safe,
     risk,
+    riskVersion: 'planning-v2',
     required,
     categories,
     obligations: obligations.sort((a, b) => a.date.localeCompare(b.date)),

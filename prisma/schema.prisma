@@ -28,6 +28,32 @@ model User {
   audits Audit[]
   risks RiskSnapshot[]
   budgets Budget[]
+  salaryPlans SalaryPlan[]
+  debtPlan DebtPlan?
+}
+model SalaryPlan {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomeId String @unique
+  income Income @relation(fields: [incomeId], references: [id])
+  essentialReserve Int
+  emergencyReserve Int
+  goalReserve Int
+  extraDebtReserve Int
+  cashAtAcceptance Float
+  mandatoryAtAcceptance Float
+  acceptedAt DateTime @default(now())
+  @@index([userId, acceptedAt])
+}
+model DebtPlan {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthlyPayment Int
+  strategy String
+  assumptions Json
+  updatedAt DateTime @updatedAt
 }
 model Budget {
   id String @id @default(cuid())
@@ -75,6 +101,7 @@ model Income {
   recurring Boolean @default(false)
   status String
   notes String?
+  salaryPlan SalaryPlan?
 }
 model Commitment {
   id String @id @default(cuid())
@@ -89,6 +116,7 @@ model Commitment {
   funded Int @default(0)
   paid Int @default(0)
   essential Boolean @default(true)
+  lateFee Int?
   active Boolean @default(true)
   payments Payment[]
 }
@@ -110,6 +138,7 @@ model Card {
   dueDate DateTime @db.Date
   minimumDue Int
   interestBps Int
+  lateFee Int?
   status String @default("ACTIVE")
   expenses Expense[]
   payments Payment[]
@@ -189,5 +218,6 @@ model RiskSnapshot {
   score Int?
   version String @default("basic-v1")
   rules Json
+  metrics Json?
   createdAt DateTime @default(now())
 }

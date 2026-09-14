@@ -3,23 +3,41 @@ import { Prisma } from '@/generated/prisma/client';
 import { addMonths, calculate, cardPayment, day, postEmi, type Data } from './finance';
 import { encrypt, decrypt, tokenHash } from './security';
 import type { Command } from './validation';
+import { debtForecast } from './decision';
 type Tx = Prisma.TransactionClient;
 export async function readData(userId: string, tx: Tx = db): Promise<Data> {
-  const [user, accounts, incomes, commitments, cards, expenses, payments, budgets] =
-    await Promise.all([
-      tx.user.findUniqueOrThrow({ where: { id: userId } }),
-      tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
-      tx.income.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-      tx.commitment.findMany({ where: { userId }, orderBy: { dueDate: 'asc' } }),
-      tx.card.findMany({
-        where: { userId },
-        include: { emis: true, statements: { orderBy: { statementDate: 'desc' }, take: 12 } },
-        orderBy: { bank: 'asc' },
-      }),
-      tx.expense.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-      tx.payment.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-      tx.budget.findMany({ where: { userId }, orderBy: [{ month: 'desc' }, { category: 'asc' }] }),
-    ]);
+  const [
+    user,
+    accounts,
+    incomes,
+    commitments,
+    cards,
+    expenses,
+    payments,
+    budgets,
+    salaryPlans,
+    debtPlan,
+    risks,
+  ] = await Promise.all([
+    tx.user.findUniqueOrThrow({ where: { id: userId } }),
+    tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+    tx.income.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+    tx.commitment.findMany({ where: { userId }, orderBy: { dueDate: 'asc' } }),
+    tx.card.findMany({
+      where: { userId },
+      include: { emis: true, statements: { orderBy: { statementDate: 'desc' }, take: 12 } },
+      orderBy: { bank: 'asc' },
+    }),
+    tx.expense.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+    tx.payment.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+    tx.budget.findMany({ where: { userId }, orderBy: [{ month: 'desc' }, { category: 'asc' }] }),
+    tx.salaryPlan.findMany({ where: { userId }, orderBy: { acceptedAt: 'desc' } }),
+    tx.debtPlan.findUnique({ where: { userId } }),
+    tx.riskSnapshot.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    }),
+  ]);
   const settings = {
     name: user.name,
     salaryDay: user.salaryDay,
@@ -33,6 +51,23 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     JSON.stringify({
       settings,
       budgets,
+      salaryPlans,
+      debtPlan,
+      risks,
+      revision: tokenHash(
+        JSON.stringify([
+          settings,
+          accounts,
+          incomes,
+          commitments,
+          cards,
+          expenses,
+          payments,
+          budgets,
+          salaryPlans,
+          debtPlan,
+        ]),
+      ),
       accounts,
       commitments,
       incomes: incomes.map((i) => ({ ...i, notes: decrypt(i.notes) })),
@@ -65,6 +100,69 @@ export async function execute(userId: string, requestId: string, command: Comman
           let entityId = userId;
           const c = command;
           switch (c.kind) {
+            case 'priorityCost': {
+              if (c.target === 'CARD') {
+                await card(c.id);
+                await tx.card.update({ where: { id: c.id }, data: { lateFee: c.lateFee } });
+              } else {
+                await tx.commitment.findFirstOrThrow({ where: { id: c.id, userId } });
+                await tx.commitment.update({ where: { id: c.id }, data: { lateFee: c.lateFee } });
+              }
+              entityId = c.id;
+              break;
+            }
+            case 'salaryPlan': {
+              const current = await readData(userId, tx);
+              if (current.revision !== c.revision)
+                throw new Error(
+                  'Your records changed. Refresh and review the updated plan before accepting.',
+                );
+              await tx.income.findFirstOrThrow({
+                where: { id: c.incomeId, userId, source: 'Salary', status: 'RECEIVED' },
+              });
+              const { kind, incomeId, revision, ...reserves } = c;
+              void kind;
+              void revision;
+              const proposed = calculate({
+                ...current,
+                settings: { ...current.settings, ...reserves },
+              });
+              if (proposed.required.length)
+                throw new Error('Information Required: ' + proposed.required.join(', '));
+              if (proposed.safe.shortfall)
+                throw new Error(
+                  'This allocation exceeds current cash. Reduce editable reserves or address the shortfall before accepting.',
+                );
+              const fields = {
+                ...reserves,
+                cashAtAcceptance: proposed.cash,
+                mandatoryAtAcceptance: proposed.mandatory,
+                acceptedAt: new Date(),
+              };
+              const row = await tx.salaryPlan.upsert({
+                where: { incomeId },
+                create: { userId, incomeId, ...fields },
+                update: fields,
+              });
+              await tx.user.update({ where: { id: userId }, data: reserves });
+              entityId = row.id;
+              break;
+            }
+            case 'debtPlan': {
+              const current = await readData(userId, tx);
+              for (const a of c.assumptions) await card(a.cardId);
+              const forecast = debtForecast(current, c.monthlyPayment, c.strategy, c.assumptions);
+              if (forecast.missing.length) throw new Error(forecast.missing.join('; '));
+              const { kind, ...fields } = c;
+              void kind;
+              const row = await tx.debtPlan.upsert({
+                where: { userId },
+                create: { userId, ...fields },
+                update: fields,
+              });
+              entityId = row.id;
+              break;
+            }
             case 'budget': {
               const category = c.category.trim().replace(/\s+/g, ' ').toLowerCase();
               const row = await tx.budget.upsert({
@@ -422,9 +520,22 @@ export async function execute(userId: string, requestId: string, command: Comman
           await tx.audit.create({
             data: { userId, requestId, requestHash, action: c.kind, entityId },
           });
-          const result = calculate(await readData(userId, tx));
+          const updatedData = await readData(userId, tx);
+          const result = calculate(updatedData);
+          const assets = updatedData.accounts.reduce((n, a) => n + a.balance, 0);
           await tx.riskSnapshot.create({
-            data: { userId, score: result.risk.score, rules: result.risk.rules },
+            data: {
+              userId,
+              score: result.risk.score,
+              rules: result.risk.rules,
+              version: result.riskVersion,
+              metrics: {
+                cash: result.cash,
+                debt: result.debt,
+                assets,
+                netWorth: assets - result.debt,
+              },
+            },
           });
           return { id: entityId, duplicate: false };
         },

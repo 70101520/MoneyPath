@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, ArrowRight } from 'lucide-react';
 import { today, type Data } from '@/lib/finance';
+import { requestId as newRequestId } from '@/lib/request-id';
 type Field = {
   name: string;
   label: string;
@@ -29,7 +30,7 @@ export function RecordForm({
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  const requestId = useRef(crypto.randomUUID());
+  const requestId = useRef(newRequestId());
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -318,7 +319,7 @@ export function RecordForm({
       });
       const result = await res.json();
       if (!res.ok) {
-        requestId.current = crypto.randomUUID();
+        requestId.current = newRequestId();
         throw new Error(result.error);
       }
       onSaved();

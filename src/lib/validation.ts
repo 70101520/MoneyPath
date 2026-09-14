@@ -20,6 +20,44 @@ const date = z
 const postedDate = date.refine((v) => v <= today(), 'Posted transactions cannot be future dated');
 export const commandSchema = z.discriminatedUnion('kind', [
   z.object({
+    kind: z.literal('priorityCost'),
+    id,
+    target: z.enum(['CARD', 'COMMITMENT']),
+    lateFee: money.nullable(),
+  }),
+  z.object({
+    kind: z.literal('salaryPlan'),
+    incomeId: id,
+    revision: z.string().max(100),
+    essentialReserve: money,
+    emergencyReserve: money,
+    goalReserve: money,
+    extraDebtReserve: money,
+  }),
+  z
+    .object({
+      kind: z.literal('debtPlan'),
+      monthlyPayment: positive,
+      strategy: z.enum(['AVALANCHE', 'SNOWBALL', 'CUSTOM']),
+      assumptions: z
+        .array(
+          z.object({
+            cardId: id,
+            annualRateBps: z.number().int().min(0).max(10000),
+            minimum: money,
+            rank: z.number().int().min(1).max(100),
+          }),
+        )
+        .min(1)
+        .max(100),
+    })
+    .refine(
+      (v) =>
+        new Set(v.assumptions.map((a) => a.cardId)).size === v.assumptions.length &&
+        new Set(v.assumptions.map((a) => a.rank)).size === v.assumptions.length,
+      'Each card and priority rank must be unique',
+    ),
+  z.object({
     kind: z.literal('budget'),
     month: z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/),
     category: text.transform((v) => v.replace(/\s+/g, ' ').toLowerCase()),

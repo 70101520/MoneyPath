@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { INR, today, type Data } from '@/lib/finance';
 import { spendingReport } from '@/lib/planning';
+import { requestId } from '@/lib/request-id';
 
 export function Planning({ data, section, demo }: { data: Data; section: string; demo: boolean }) {
   const router = useRouter();
@@ -26,7 +27,7 @@ export function Planning({ data, section, demo }: { data: Data; section: string;
     const [rupees, paise = ''] = amount.split('.');
     const value = Number(rupees) * 100 + Number(paise.padEnd(2, '0'));
     const body = JSON.stringify({ kind: 'budget', month, category, amount: value });
-    if (request.current?.body !== body) request.current = { body, key: crypto.randomUUID() };
+    if (request.current?.body !== body) request.current = { body, key: requestId() };
     setBusy(true);
     setMessage('');
     try {
