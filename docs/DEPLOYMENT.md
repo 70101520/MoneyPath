@@ -2,7 +2,7 @@
 
 MoneyPath Phase 1 is available at **http://192.168.80.128:3000** on the VMware guest. Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
 
-The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Application revision: `c47eb9b16fa4d09fed86b75318cbe3f2e1c03043`. Subsequent documentation commits do not change the tested image.
+The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Initial Phase 1 revision: `c47eb9b16fa4d09fed86b75318cbe3f2e1c03043`. Phase 2 budgets and spending analysis update: `6fbd595`. Subsequent documentation commits do not change the tested image.
 
 ## First account
 

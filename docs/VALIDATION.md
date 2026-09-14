@@ -1,5 +1,7 @@
 # Phase 1 validation
 
+This records the Phase 1 baseline. Phase 2 has since started with budgets and spending analysis; current results and remaining scope are in [PHASE2.md](PHASE2.md).
+
 Application validation ran on 13-09-2026 using Node.js 24.19.0 on Windows, Next.js 16.3.5, Prisma 7.10.0, an isolated UTF-8 PostgreSQL 18.4 test cluster, and Playwright Chromium. On 14-09-2026, all 29 finance/security/database tests passed again, and the backup/restore check passed using PostgreSQL 18.6 client tools.
 
 | Check                                               | Result                                                                                                   |

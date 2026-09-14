@@ -26,3 +26,5 @@ Phases 3 and 4 remain pending. The first increment does not complete Phase 2.
 ## Validation
 
 On 14 September 2026: optimized build and TypeScript passed; 34 finance/security/database tests passed; four Chromium workflows passed, including saved budget persistence and mobile overflow checks. A dump/restore comparison passed across all 15 tables with encrypted-field and balance-constraint checks. The new migration only adds the Budget table and does not rewrite existing financial records.
+
+Revision `6fbd595` was deployed to the testing VM after all 34 tests also passed inside its Docker build image against an isolated database. The existing database was backed up before migration to a timestamped file under `/opt/moneypath/backups/`, alongside a private environment recovery copy. Four migrations are applied. LAN Chromium checks passed on desktop and mobile for both new screens, with no page errors or horizontal page overflow. Existing login credentials continue to work.

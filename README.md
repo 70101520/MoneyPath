@@ -86,7 +86,7 @@ npm run typecheck
 npm run build
 ```
 
-Pure tests cover safe-to-spend, reserves, statement/unbilled balances, payments, EMI, budget variance, debt reduction, risk, goal shortfalls, dates and security. Budget and goal helpers are tested foundations, not Phase 2 interfaces.
+Pure tests cover safe-to-spend, reserves, statement/unbilled balances, payments, EMI, budget variance, debt reduction, risk, goal shortfalls, dates and security. Phase 2 tests also cover persisted budgets and spending comparisons; goal helpers remain foundations for a later phase.
 
 The optional embedded PostgreSQL package is **test-only**. It starts a separate cluster on `127.0.0.1:55432`, stores data in `.local-db`, and creates private synthetic credentials in `.env.test.local`. It never uses the real `.env` database. On Linux, run the test database as a non-root user.
 
