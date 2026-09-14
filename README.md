@@ -24,7 +24,9 @@ docker compose up --build -d
 
 Open **http://localhost:3000**. Choose **First time here? Set up your account**, enter the setup token, and create a password of at least 12 characters. Registration closes after the owner exists. Add accounts and complete Settings to enable the finance calculations. There is no default password.
 
-Compose waits for PostgreSQL, applies checked-in migrations, and starts the app as a non-root user. Both exposed ports bind only to localhost. For remote access, configure an HTTPS reverse proxy, update `APP_ORIGIN`, and disable insecure cookies. Keep `.env` and backups private. Losing the encryption key makes encrypted notes and card identifiers unrecoverable.
+Compose waits for PostgreSQL, applies checked-in migrations, and starts the app as a non-root user. Both exposed ports default to localhost. `APP_BIND_ADDRESS` and `APP_PORT` configure the application listener; PostgreSQL stays on localhost with configurable `DB_PORT`. For production remote access, configure an HTTPS reverse proxy, update `APP_ORIGIN`, and disable insecure cookies. Keep `.env` and backups private. Losing the encryption key makes encrypted notes and card identifiers unrecoverable.
+
+The testing VM is deployed at **http://192.168.80.128:3000**. See [deployment and maintenance instructions](docs/DEPLOYMENT.md).
 
 ## Local development
 
@@ -134,11 +136,11 @@ Verify record counts and application balances against the backup using its match
 
 ## Phase 1 validation and limits
 
-Build, unit/integration tests and Chromium desktop/mobile checks are recorded in [VALIDATION.md](docs/VALIDATION.md). Docker configuration is supplied, but a container build/run cannot be verified on a host without Docker. Validate that workflow on your deployment host before relying on it for real data. Authentication has no email reset/MFA workflow yet; keep owner credentials secure.
+Build, unit/integration tests and Chromium desktop/mobile checks are recorded in [VALIDATION.md](docs/VALIDATION.md). Docker build, Compose startup, container smoke tests and database restore passed on the Ubuntu testing VM. Authentication has no email reset/MFA workflow yet; keep owner credentials secure.
 
 ### Repeatable deployment checks
 
-The GitHub Actions workflow in `.github/workflows/phase1.yml` builds a disposable Docker Compose stack and runs authentication, accounting, encryption, idempotency, origin-validation and logout checks. It also checks that the runtime is non-root and runs the finance/security tests in the build image. The workflow runs on push, pull request, or manual dispatch once this repository is hosted on GitHub. It has not yet run on the current Windows host, which has no Docker installation.
+The GitHub Actions workflow in `.github/workflows/phase1.yml` builds a disposable Docker Compose stack and runs authentication, accounting, encryption, idempotency, origin-validation and logout checks. It also checks that the runtime is non-root and runs the finance/security tests in the build image. The workflow runs on push, pull request, or manual dispatch. Equivalent container checks passed on the testing VM; a GitHub-hosted workflow result has not been confirmed.
 
 Backup/restore has been verified locally using portable PostgreSQL client tools. To repeat it with the isolated test database running:
 
