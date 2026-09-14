@@ -20,6 +20,10 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     risks,
     personalEntries,
     settlements,
+    advances,
+    investments,
+    investmentEvents,
+    goals,
   ] = await Promise.all([
     tx.user.findUniqueOrThrow({ where: { id: userId } }),
     tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
@@ -44,6 +48,10 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
       where: { userId },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
+    tx.personalAdvance.findMany({ where: { userId }, orderBy: [{ date: 'desc' }, { id: 'desc' }] }),
+    tx.investment.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+    tx.investmentEvent.findMany({ where: { userId }, orderBy: [{ date: 'desc' }, { id: 'desc' }] }),
+    tx.goal.findMany({ where: { userId }, orderBy: { targetDate: 'asc' } }),
   ]);
   const settings = {
     name: user.name,
@@ -67,6 +75,10 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
         notes: decrypt(e.notes),
       })),
       settlements: settlements.map((e) => ({ ...e, notes: decrypt(e.notes) })),
+      advances: advances.map((e) => ({ ...e, notes: decrypt(e.notes) })),
+      investments: investments.map((e) => ({ ...e, notes: decrypt(e.notes) })),
+      investmentEvents: investmentEvents.map((e) => ({ ...e, notes: decrypt(e.notes) })),
+      goals: goals.map((e) => ({ ...e, notes: decrypt(e.notes) })),
       revision: tokenHash(
         JSON.stringify([
           settings,
@@ -81,6 +93,10 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
           debtPlan,
           personalEntries,
           settlements,
+          advances,
+          investments,
+          investmentEvents,
+          goals,
         ]),
       ),
       accounts,
@@ -115,6 +131,125 @@ export async function execute(userId: string, requestId: string, command: Comman
           let entityId = userId;
           const c = command;
           switch (c.kind) {
+            case 'investment': {
+              if (c.maturityDate && c.nextContribution && c.maturityDate < c.nextContribution)
+                throw new Error('Maturity cannot be before the next contribution');
+              const row = await tx.investment.create({
+                data: {
+                  userId,
+                  name: c.name,
+                  kind: c.investmentKind,
+                  contributed: c.contributed,
+                  currentValue: c.currentValue,
+                  monthlyContribution: c.monthlyContribution,
+                  nextContribution: c.nextContribution ? day(c.nextContribution) : null,
+                  maturityDate: c.maturityDate ? day(c.maturityDate) : null,
+                  liquid: c.liquid,
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
+            case 'investmentEvent': {
+              const target = await tx.investment.findFirstOrThrow({ where: { id: c.id, userId } });
+              if (c.eventKind === 'CONTRIBUTION') {
+                if (c.amount <= 0) throw new Error('Contribution must be positive');
+                await debit(c.accountId!, c.amount);
+                await tx.investment.update({
+                  where: { id: c.id },
+                  data: {
+                    contributed: { increment: c.amount },
+                    currentValue: { increment: c.amount },
+                  },
+                });
+              } else if (c.eventKind === 'WITHDRAWAL') {
+                if (c.amount <= 0 || c.amount > target.currentValue)
+                  throw new Error('Withdrawal must fit the current value');
+                await account(c.accountId!);
+                await tx.account.update({
+                  where: { id: c.accountId! },
+                  data: { balance: { increment: c.amount } },
+                });
+                await tx.investment.update({
+                  where: { id: c.id },
+                  data: { currentValue: { decrement: c.amount } },
+                });
+              } else
+                await tx.investment.update({
+                  where: { id: c.id },
+                  data: { currentValue: c.amount },
+                });
+              const row = await tx.investmentEvent.create({
+                data: {
+                  userId,
+                  investmentId: c.id,
+                  accountId: c.accountId,
+                  kind: c.eventKind,
+                  amount: c.amount,
+                  date: day(c.date),
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
+            case 'goal': {
+              const fields = {
+                name: c.name,
+                kind: c.goalKind,
+                targetDate: day(c.targetDate),
+                familyContribution: c.familyContribution,
+                personalCash: c.personalCash,
+                engagement: c.engagement,
+                travel: c.travel,
+                shopping: c.shopping,
+                emergencyBuffer: c.emergencyBuffer,
+                otherAmount: c.otherAmount,
+                alreadySaved: c.alreadySaved,
+                confirmedMoney: c.confirmedMoney,
+                expectedMoney: c.expectedMoney,
+                notes: encrypt(c.notes),
+              };
+              const row = c.id
+                ? await tx.goal.update({
+                    where: {
+                      id: (await tx.goal.findFirstOrThrow({ where: { id: c.id, userId } })).id,
+                    },
+                    data: fields,
+                  })
+                : await tx.goal.create({ data: { userId, ...fields } });
+              entityId = row.id;
+              break;
+            }
+            case 'personalAdvance': {
+              const target = await tx.personalEntry.findFirstOrThrow({
+                where: { id: c.id, userId },
+              });
+              await account(c.accountId);
+              if (target.direction === 'RECEIVABLE') await debit(c.accountId, c.amount);
+              else
+                await tx.account.update({
+                  where: { id: c.accountId },
+                  data: { balance: { increment: c.amount } },
+                });
+              await tx.personalEntry.update({
+                where: { id: c.id },
+                data: { amount: { increment: c.amount } },
+              });
+              const row = await tx.personalAdvance.create({
+                data: {
+                  userId,
+                  entryId: c.id,
+                  accountId: c.accountId,
+                  amount: c.amount,
+                  date: day(c.date),
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
             case 'personalEntry': {
               const row = await tx.personalEntry.create({
                 data: {
@@ -613,7 +748,9 @@ export async function execute(userId: string, requestId: string, command: Comman
           });
           const updatedData = await readData(userId, tx);
           const result = calculate(updatedData);
-          const assets = updatedData.accounts.reduce((n, a) => n + a.balance, 0);
+          const assets =
+            updatedData.accounts.reduce((n, a) => n + a.balance, 0) +
+            (updatedData.investments ?? []).reduce((n, i) => n + i.currentValue, 0);
           await tx.riskSnapshot.create({
             data: {
               userId,

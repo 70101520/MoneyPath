@@ -46,6 +46,9 @@ import { RecordForm } from './record-form';
 import { Planning } from './planning';
 import { Decisions } from './decisions';
 import { PersonalBalances } from './personal';
+import { FuturePlanning } from './future';
+import { FinanceAssistant } from './assistant';
+import { Integrations } from './integrations';
 import { planningNotifications } from '@/lib/decision';
 const navigation = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -67,6 +70,11 @@ const navigation = [
   { id: 'reports', label: 'Reports', icon: ReceiptText },
   { id: 'receivables', label: 'Money to receive', icon: ArrowDownLeft },
   { id: 'payables', label: 'Money I owe', icon: ArrowLeftRight },
+  { id: 'investments', label: 'Investments', icon: TrendingDown },
+  { id: 'goals', label: 'Marriage & goals', icon: ShieldCheck },
+  { id: 'what-if', label: 'What-if simulator', icon: CircleHelp },
+  { id: 'assistant', label: 'Finance assistant', icon: CircleHelp },
+  { id: 'integrations', label: 'Mobile & integrations', icon: Settings2 },
 ];
 const colors = ['#337569', '#91ada1', '#d7b787', '#8295aa', '#b5bdc5', '#e0d5c1'];
 export function Workspace({
@@ -320,7 +328,13 @@ export function Workspace({
               </button>
             </div>
           )}
-          {active === 'receivables' || active === 'payables' ? (
+          {active === 'integrations' ? (
+            <Integrations demo={demo} />
+          ) : active === 'assistant' ? (
+            <FinanceAssistant data={data} />
+          ) : ['investments', 'goals', 'what-if'].includes(active) ? (
+            <FuturePlanning data={data} section={active} demo={demo} />
+          ) : active === 'receivables' || active === 'payables' ? (
             <PersonalBalances
               key={active}
               data={data}
@@ -472,9 +486,9 @@ export function Workspace({
                 />
                 <Stat
                   label="Savings & investments"
-                  value={INR(s.nonSpendable)}
+                  value={INR(s.nonSpendable + s.investmentValue)}
                   icon={<Landmark size={18} />}
-                  note="Held outside your spending accounts"
+                  note="Non-spendable accounts plus tracked products"
                   tone="green"
                 />
                 {!!data.personalEntries?.length && (
@@ -709,10 +723,16 @@ export function Workspace({
                 {demo ? (
                   <span className="badge neutral">Exports available after account setup</span>
                 ) : (
-                  <a href="/api/export" className="button">
-                    <Download size={16} />
-                    Export transactions CSV
-                  </a>
+                  <div className="heading-actions">
+                    <a href="/api/export" className="button">
+                      <Download size={16} />
+                      Export transactions CSV
+                    </a>
+                    <a href="/api/export/excel" className="button">
+                      <Download size={16} />
+                      Export Excel workbook
+                    </a>
+                  </div>
                 )}
               </section>
             </div>
@@ -911,6 +931,13 @@ export function Workspace({
   );
 }
 const descriptions: Record<string, string> = {
+  investments:
+    'Track contributions, valuations, liquidity and maturity without treating assets as spending cash.',
+  goals: 'Plan marriage and other goals using confirmed and expected money separately.',
+  'what-if': 'Compare choices without changing your financial records.',
+  assistant:
+    'Plain-language answers grounded in your recorded data and deterministic calculations.',
+  integrations: 'Connect read-only mobile clients and review external delivery options.',
   receivables: 'Track expected receipts without counting them as spendable cash.',
   payables: 'Track private liabilities, repayment dates and cash reservations.',
   'salary-plan': 'Give your received salary a clear purpose.',

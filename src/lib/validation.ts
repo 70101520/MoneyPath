@@ -19,6 +19,58 @@ const date = z
   );
 const postedDate = date.refine((v) => v <= today(), 'Posted transactions cannot be future dated');
 export const commandSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('investment'),
+    name: text,
+    investmentKind: z.enum(['SIP', 'GOLD', 'FIXED_DEPOSIT', 'PPF', 'NPS', 'OTHER']),
+    contributed: money,
+    currentValue: money,
+    monthlyContribution: money,
+    nextContribution: date.nullable(),
+    maturityDate: date.nullable(),
+    liquid: z.boolean(),
+    notes,
+  }),
+  z
+    .object({
+      kind: z.literal('investmentEvent'),
+      id,
+      eventKind: z.enum(['CONTRIBUTION', 'WITHDRAWAL', 'VALUATION']),
+      accountId: id.nullable(),
+      amount: money,
+      date: postedDate,
+      notes,
+    })
+    .refine(
+      (v) => (v.eventKind === 'VALUATION' ? v.accountId === null : !!v.accountId),
+      'Choose an account for cash movements only',
+    ),
+  z.object({
+    kind: z.literal('goal'),
+    id: id.optional(),
+    name: text,
+    goalKind: z.enum(['MARRIAGE', 'OTHER']),
+    targetDate: date,
+    familyContribution: money,
+    personalCash: money,
+    engagement: money,
+    travel: money,
+    shopping: money,
+    emergencyBuffer: money,
+    otherAmount: money,
+    alreadySaved: money,
+    confirmedMoney: money,
+    expectedMoney: money,
+    notes,
+  }),
+  z.object({
+    kind: z.literal('personalAdvance'),
+    id,
+    accountId: id,
+    amount: positive,
+    date: postedDate,
+    notes,
+  }),
   z
     .object({
       kind: z.literal('personalEntry'),

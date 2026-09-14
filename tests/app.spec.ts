@@ -61,7 +61,9 @@ test('protected routes redirect and cross-origin mutations fail', async ({ page,
   });
   expect(res.status()).toBe(400);
 });
-test('Phase 2 screens and purchase preview fit mobile without client errors', async ({ page }) => {
+test('planning, Phase 3, and Phase 4 screens fit mobile without client errors', async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 390, height: 844 });
@@ -73,6 +75,13 @@ test('Phase 2 screens and purchase preview fit mobile without client errors', as
     'Get out of debt',
     'Notifications',
     'Reports',
+    'Money to receive',
+    'Money I owe',
+    'Investments',
+    'Marriage & goals',
+    'What-if simulator',
+    'Finance assistant',
+    'Mobile & integrations',
   ]) {
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await page.getByRole('button', { name: section, exact: true }).click();

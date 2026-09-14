@@ -1,6 +1,6 @@
-# Phase 3 progress
+# Phase 3 complete
 
-Phase 3 has started with **Money to receive** and **Money I owe**. Phases 1 and 2 remain available. This increment does not complete Phase 3.
+Phase 3 is complete. Phases 1 and 2 remain available.
 
 ## Available in this increment
 
@@ -19,14 +19,16 @@ Use **Receive from** or **Repay** for subsequent principal settlements. Select t
 
 Opening amounts and posted settlements are immutable; reference, notes, due dates, priority and planned reserve can be edited. There is no new-loan advance, lending transfer, write-off or reversal flow in this increment. The planned private reserve is separate from Settings' extra debt reserve; do not reserve the same amount twice.
 
-## Still pending in Phase 3
+## Completed final increment
 
-- Investment product details, contributions, valuations and maturity dates.
-- Marriage/other goal planning and broader what-if scenarios.
-- New borrowing/lending cash movements beyond opening private balances.
-- Excel export and a managed restore interface.
+- Investment products track contributions, current value, gain/loss, monthly plans, liquidity and maturity. Contributions and withdrawals move account cash once; valuation updates do not.
+- Marriage and other goals separate confirmed savings from expected money and calculate the confirmed shortfall, months remaining and required monthly saving.
+- The what-if simulator compares purchases, extra debt repayment, paused contributions, receivable arrival/failure and salary delay without writing transactions.
+- New lending and borrowing move cash once and increase the matching personal principal balance without creating income or expense.
+- The Excel-compatible workbook contains summary, transactions, investments and goals. CSV remains available.
+- Database backup and restore use the tested PostgreSQL operator workflow in the README. Restore is performed into a new database and verified before switching rather than accepting a database dump through the public web process.
 
-Phase 4 integrations, background notifications, AI explanations and mobile API consumers remain pending.
+Phase 4 has started; see [PHASE4.md](PHASE4.md).
 
 ## Validation
 

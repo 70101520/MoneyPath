@@ -1,10 +1,10 @@
 # MoneyPath
 
-A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 provides authentication and transaction accounting. Phase 2 adds budgets, spending analysis, salary allocation, payment priorities, purchase simulation, debt payoff scenarios, in-app reminders and versioned risk/history reports. See [Phase 2 usage and calculation assumptions](docs/PHASE2.md). Phase 3 is in progress; Phase 4 remains pending.
+A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 provides authentication and transaction accounting. Phase 2 adds budgets, spending analysis, salary allocation, payment priorities, purchase simulation, debt payoff scenarios, in-app reminders and versioned risk/history reports. Phase 3 adds personal balances, investments, goals, what-if scenarios and Excel export. Phase 4 is in progress with a constrained finance assistant and read-only mobile API.
 
 Read [the architecture, ER diagram, calculation rules and phased roadmap](docs/ARCHITECTURE.md) before extending the application. The executable database schema is [prisma/schema.prisma](prisma/schema.prisma).
 
-Phase 3 has started with **Money to receive** and **Money I owe**, including principal settlements and private-debt reservations. See [Phase 3 usage and remaining scope](docs/PHASE3.md).
+Phase 3 is complete. See [Phase 3 usage and calculation rules](docs/PHASE3.md). See [Phase 4 status and provider requirements](docs/PHASE4.md).
 
 ## Start with Docker
 
@@ -115,7 +115,7 @@ Browser checks cover desktop/mobile layout, all Phase 1 navigation, dialog entry
 
 ## Export, backup and restore
 
-**Settings → Export transactions CSV** exports income, purchases and payments with distinct record types. Do not sum purchases and payments as expenses. Cells are escaped to prevent spreadsheet formula execution. Excel-format exports and an in-app restore UI belong to later phases.
+**Settings → Export transactions CSV** exports income, purchases and payments with distinct record types. **Export Excel workbook** adds summary, investment and goal sheets. Do not sum purchases and payments as expenses. Cells are escaped to prevent spreadsheet formula execution.
 
 Create a database backup inside the database container, then copy it out. This avoids binary dump corruption from older PowerShell redirection:
 

@@ -32,6 +32,22 @@ model User {
   debtPlan DebtPlan?
   personalEntries PersonalEntry[]
   settlements PersonalSettlement[]
+  advances PersonalAdvance[]
+  investments Investment[]
+  investmentEvents InvestmentEvent[]
+  goals Goal[]
+  apiTokens ApiToken[]
+}
+model ApiToken {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  @@index([userId, createdAt])
 }
 model PersonalEntry {
   id String @id @default(cuid())
@@ -48,7 +64,71 @@ model PersonalEntry {
   paymentReserve Int?
   notes String?
   settlements PersonalSettlement[]
+  advances PersonalAdvance[]
   @@index([userId, direction])
+}
+model PersonalAdvance {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  entryId String
+  entry PersonalEntry @relation(fields: [entryId], references: [id])
+  accountId String
+  account Account @relation(fields: [accountId], references: [id])
+  amount Int
+  date DateTime @db.Date
+  notes String?
+  @@index([userId, date])
+}
+model Investment {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  kind String
+  contributed Int
+  currentValue Int
+  monthlyContribution Int
+  nextContribution DateTime? @db.Date
+  maturityDate DateTime? @db.Date
+  liquid Boolean @default(false)
+  notes String?
+  events InvestmentEvent[]
+  @@index([userId, name])
+}
+model InvestmentEvent {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  investmentId String
+  investment Investment @relation(fields: [investmentId], references: [id])
+  accountId String?
+  account Account? @relation(fields: [accountId], references: [id])
+  kind String
+  amount Int
+  date DateTime @db.Date
+  notes String?
+  @@index([userId, date])
+}
+model Goal {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  kind String
+  targetDate DateTime @db.Date
+  familyContribution Int @default(0)
+  personalCash Int @default(0)
+  engagement Int @default(0)
+  travel Int @default(0)
+  shopping Int @default(0)
+  emergencyBuffer Int @default(0)
+  otherAmount Int @default(0)
+  alreadySaved Int @default(0)
+  confirmedMoney Int @default(0)
+  expectedMoney Int @default(0)
+  notes String?
+  @@index([userId, targetDate])
 }
 model PersonalSettlement {
   id String @id @default(cuid())
@@ -121,6 +201,8 @@ model Account {
   expenses Expense[]
   payments Payment[]
   settlements PersonalSettlement[]
+  advances PersonalAdvance[]
+  investmentEvents InvestmentEvent[]
 }
 model Income {
   id String @id @default(cuid())

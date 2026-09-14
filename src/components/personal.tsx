@@ -15,7 +15,7 @@ export function PersonalBalances({
 }) {
   const receivable = direction === 'RECEIVABLE';
   const [selected, setSelected] = useState<string | null>(null),
-    [mode, setMode] = useState<'create' | 'edit' | 'settle'>('create');
+    [mode, setMode] = useState<'create' | 'edit' | 'settle' | 'advance'>('create');
   const [generation, setGeneration] = useState(0);
   const { save, busy, message, setMessage } = useSave(demo);
   const entries = (data.personalEntries ?? []).filter((e) => e.direction === direction);
@@ -38,9 +38,9 @@ export function PersonalBalances({
       value = (name: string) => String(form.get(name) ?? '').trim();
     try {
       const command =
-        mode === 'settle'
+        mode === 'settle' || mode === 'advance'
           ? {
-              kind: 'personalSettlement',
+              kind: mode === 'advance' ? 'personalAdvance' : 'personalSettlement',
               id: selected,
               accountId: value('accountId'),
               amount: paise(value('amount')),
@@ -123,13 +123,15 @@ export function PersonalBalances({
       </div>
       <section className="panel planning-insights">
         <h2>
-          {mode === 'settle'
-            ? `${receivable ? 'Receive' : 'Repay'} · ${entry?.reference ?? ''}`
-            : mode === 'edit'
-              ? 'Edit dates and plan'
-              : receivable
-                ? 'Add money to receive'
-                : 'Add money I owe'}
+          {mode === 'advance'
+            ? `${receivable ? 'Lend more to' : 'Borrow more from'} · ${entry?.reference ?? ''}`
+            : mode === 'settle'
+              ? `${receivable ? 'Receive' : 'Repay'} · ${entry?.reference ?? ''}`
+              : mode === 'edit'
+                ? 'Edit dates and plan'
+                : receivable
+                  ? 'Add money to receive'
+                  : 'Add money I owe'}
         </h2>
         {mode !== 'create' && (
           <button className="text-button" onClick={() => select(null, 'create')}>
@@ -137,11 +139,14 @@ export function PersonalBalances({
           </button>
         )}
         <form key={`${generation}-${direction}`} className="planning-budget-form" onSubmit={submit}>
-          {mode === 'settle' ? (
+          {mode === 'settle' || mode === 'advance' ? (
             <>
               <p>
-                Remaining: {INR(entry ? entry.amount - entry.settled : 0)}. This is a principal
-                settlement, not new income or expense.
+                {mode === 'advance'
+                  ? receivable
+                    ? 'This lends new money from the selected account and increases the receivable.'
+                    : 'This records new borrowing into the selected account and increases the liability.'
+                  : `Remaining: ${INR(entry ? entry.amount - entry.settled : 0)}. This is a principal settlement, not new income or expense.`}
               </p>
               <label>
                 Settlement amount (INR)
@@ -243,19 +248,23 @@ export function PersonalBalances({
             <textarea
               name="notes"
               maxLength={500}
-              defaultValue={mode === 'settle' ? '' : (entry?.notes ?? '')}
+              defaultValue={mode === 'settle' || mode === 'advance' ? '' : (entry?.notes ?? '')}
             />
           </label>
           <button className="button primary" disabled={busy}>
             {busy
               ? 'Saving…'
-              : mode === 'settle'
+              : mode === 'advance'
                 ? receivable
-                  ? 'Record receipt'
-                  : 'Record repayment'
-                : mode === 'edit'
-                  ? 'Save dates and plan'
-                  : 'Save opening balance'}
+                  ? 'Record lending'
+                  : 'Record borrowing'
+                : mode === 'settle'
+                  ? receivable
+                    ? 'Record receipt'
+                    : 'Record repayment'
+                  : mode === 'edit'
+                    ? 'Save dates and plan'
+                    : 'Save opening balance'}
           </button>
           {message && <p role="status">{message}</p>}
         </form>
@@ -289,6 +298,9 @@ export function PersonalBalances({
                 {receivable ? 'Receive from' : 'Repay'} {e.reference}
               </button>
             )}
+            <button className="text-button" onClick={() => select(e.id, 'advance')}>
+              {receivable ? 'Lend more' : 'Borrow more'} →
+            </button>
           </div>
           <details>
             <summary>Settlement history</summary>

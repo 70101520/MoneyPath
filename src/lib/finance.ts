@@ -221,6 +221,10 @@ export type PaymentData = {
   notes: string | null;
 };
 export type Data = {
+  investments?: InvestmentData[];
+  investmentEvents?: InvestmentEventData[];
+  goals?: GoalData[];
+  advances?: PersonalAdvanceData[];
   personalEntries?: PersonalEntryData[];
   settlements?: SettlementData[];
   revision?: string;
@@ -263,6 +267,52 @@ export type Data = {
   expenses: ExpenseData[];
   incomes: IncomeData[];
   payments: PaymentData[];
+};
+export type InvestmentData = {
+  id: string;
+  name: string;
+  kind: string;
+  contributed: number;
+  currentValue: number;
+  monthlyContribution: number;
+  nextContribution: string | null;
+  maturityDate: string | null;
+  liquid: boolean;
+  notes: string | null;
+};
+export type InvestmentEventData = {
+  id: string;
+  investmentId: string;
+  accountId: string | null;
+  kind: string;
+  amount: number;
+  date: string;
+  notes: string | null;
+};
+export type GoalData = {
+  id: string;
+  name: string;
+  kind: string;
+  targetDate: string;
+  familyContribution: number;
+  personalCash: number;
+  engagement: number;
+  travel: number;
+  shopping: number;
+  emergencyBuffer: number;
+  otherAmount: number;
+  alreadySaved: number;
+  confirmedMoney: number;
+  expectedMoney: number;
+  notes: string | null;
+};
+export type PersonalAdvanceData = {
+  id: string;
+  entryId: string;
+  accountId: string;
+  amount: number;
+  date: string;
+  notes: string | null;
 };
 export type Obligation = {
   id: string;
@@ -474,7 +524,27 @@ export function calculate(data: Data, asOf = today()) {
   const personal = personalSummary(data.personalEntries ?? [], asOf, horizon);
   required.push(...personal.required);
   obligations.push(...personal.obligations);
-  const mandatory = commitmentReserve + cardReserve + emiReserve + personal.reserve;
+  const investmentReserve = (data.investments ?? []).reduce((sum, investment) => {
+    if (
+      !investment.nextContribution ||
+      !horizon ||
+      investment.nextContribution.slice(0, 10) > horizon ||
+      investment.nextContribution.slice(0, 10) < asOf
+    )
+      return sum;
+    obligations.push({
+      id: investment.id,
+      name: investment.name,
+      kind: 'Investment contribution',
+      amount: investment.monthlyContribution,
+      date: investment.nextContribution.slice(0, 10),
+      essential: false,
+      days: daysBetween(asOf, investment.nextContribution),
+    });
+    return sum + investment.monthlyContribution;
+  }, 0);
+  const mandatory =
+    commitmentReserve + cardReserve + emiReserve + personal.reserve + investmentReserve;
   const safe = safeToSpend(required.length ? null : cash, [
     mandatory,
     s.essentialReserve,
@@ -625,6 +695,7 @@ export function calculate(data: Data, asOf = today()) {
     commitmentReserve,
     cardReserve,
     emiReserve,
+    investmentReserve,
     safe,
     risk,
     riskVersion: data.personalEntries?.length ? 'personal-v3' : 'planning-v2',
@@ -636,5 +707,6 @@ export function calculate(data: Data, asOf = today()) {
     categories,
     obligations: obligations.sort((a, b) => a.date.localeCompare(b.date)),
     nonSpendable: data.accounts.filter((a) => !a.spendable).reduce((sum, a) => sum + a.balance, 0),
+    investmentValue: (data.investments ?? []).reduce((sum, i) => sum + i.currentValue, 0),
   };
 }
