@@ -2,13 +2,15 @@
 
 MoneyPath Phases 1–4 are available at **http://192.168.80.128:3000** on the VMware guest. See [PHASE3.md](PHASE3.md) and [PHASE4.md](PHASE4.md). Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
 
-The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Current tested application revision: `39788d5` (complete Phase 4). Earlier releases: `c47eb9b` (Phase 1), `79ddbdb` (full Phase 2), `c043f99` (first Phase 3 increment) and `b0af09a` (complete Phase 3). Subsequent documentation commits do not change the tested image.
+The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Current tested application revision: `b7f0c61` (conversational financial assistant). Earlier releases: `c47eb9b` (Phase 1), `79ddbdb` (full Phase 2), `b0af09a` (complete Phase 3), `39788d5` (complete Phase 4) and `079df2d` (dynamic personal guidance). Subsequent documentation commits do not change the tested image.
 
 The completed Phase 4 Docker build and all 68 tests passed on the VM. Ten migrations are applied. The database and matching environment backup is `/opt/moneypath/backups/before-phase4-complete-20260914T182715Z.*`; all 23 pre-existing application-table fingerprints matched after migration. The prior image is tagged `moneypath-app:before-phase4-complete`.
 
 The `moneypath-notifier` worker is running and its authenticated delivery job completed successfully. Anonymous job execution was rejected with HTTP 401. VM-only job and VAPID keys were generated with restricted environment-file permissions. SMTP variables remain empty until an email provider account is configured.
 
 Dynamic personal guidance revision `079df2d` is deployed. Its Docker build and all 70 tests passed, followed by desktop/mobile LAN checks. The database and matching environment backup is `/opt/moneypath/backups/before-guidance-20260914T185624Z.*`; all 25 application-table fingerprints matched before and after deployment.
+
+Conversational assistant revision `b7f0c61` is deployed. Its Docker build and all 74 tests passed, followed by desktop/mobile chatbot checks. Eleven migrations are applied. The database and matching environment backup is `/opt/moneypath/backups/before-chatbot-20260914T191619Z.*`; all 25 pre-existing application-table fingerprints matched before and after migration. The assistant stores encrypted chat history and requires an explicit confirmation before saving an interpreted transaction.
 
 The current Docker build and all 66 finance/security/database tests passed on the VM. Nine migrations are applied. Before migration, the app was stopped and its database and matching environment were backed up under `/opt/moneypath/backups/before-phase3-complete-20260914T180955Z.*`. Full row counts/digests for all 18 pre-existing application tables matched after migration. The old image is tagged `moneypath-app:before-phase3-complete`.
 
