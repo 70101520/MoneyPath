@@ -1,0 +1,45 @@
+name: Phase 1 verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate disposable test configuration
+        run: |
+          node --input-type=module <<'NODE'
+          import { randomBytes } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+          const secret = () => randomBytes(32).toString('hex');
+          writeFileSync('.env', `POSTGRES_PASSWORD=${secret()}\nENCRYPTION_KEY=${secret()}\nSETUP_TOKEN=${secret()}\nAPP_ORIGIN=http://localhost:3000\nALLOW_INSECURE_COOKIE=true\nCONTAINER_SMOKE_TEST=yes\n`);
+          NODE
+      - name: Build and launch Compose
+        run: docker compose up --build -d
+      - name: Wait for application
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Check real container accounting and authentication
+        run: node --env-file=.env scripts/check-container.mjs
+      - name: Run finance and security tests inside build image
+        run: docker compose run --rm migrate npm test
+      - name: Check runtime uses non-root user
+        run: test "$(docker compose exec -T app id -u)" != "0"
+      - name: Collect container logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=100
+      - name: Stop disposable stack
+        if: always()
+        run: docker compose down --volumes

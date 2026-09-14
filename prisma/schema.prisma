@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+model User {
+  id String @id @default(cuid())
+  ownerKey String @unique @default("owner")
+  email String @unique
+  password String
+  name String
+  salaryDay Int?
+  monthlyIncome Int?
+  essentialReserve Int?
+  emergencyReserve Int?
+  goalReserve Int?
+  extraDebtReserve Int?
+  createdAt DateTime @default(now())
+  sessions Session[]
+  accounts Account[]
+  incomes Income[]
+  commitments Commitment[]
+  cards Card[]
+  expenses Expense[]
+  payments Payment[]
+  audits Audit[]
+  risks RiskSnapshot[]
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model LoginAttempt {
+  id String @id
+  count Int @default(0)
+  resetAt DateTime
+}
+model Account {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  name String
+  kind String
+  balance Int
+  spendable Boolean @default(true)
+  incomes Income[]
+  expenses Expense[]
+  payments Payment[]
+}
+model Income {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  accountId String?
+  account Account? @relation(fields: [accountId], references: [id])
+  amount Int
+  date DateTime @db.Date
+  source String
+  recurring Boolean @default(false)
+  status String
+  notes String?
+}
+model Commitment {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  name String
+  category String
+  amount Int
+  intervalMonths Int
+  dueDate DateTime @db.Date
+  anchorDay Int
+  funded Int @default(0)
+  paid Int @default(0)
+  essential Boolean @default(true)
+  active Boolean @default(true)
+  payments Payment[]
+}
+model Card {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  bank String
+  name String
+  lastFour String?
+  creditLimit Int
+  availableLimit Int?
+  outstanding Int
+  statementAmount Int
+  statementPaid Int @default(0)
+  carriedBalance Int @default(0)
+  carriedDueDate DateTime? @db.Date
+  statementDate DateTime @db.Date
+  dueDate DateTime @db.Date
+  minimumDue Int
+  interestBps Int
+  status String @default("ACTIVE")
+  expenses Expense[]
+  payments Payment[]
+  emis Emi[]
+  statements CardStatement[]
+}
+model CardStatement {
+  id String @id @default(cuid())
+  cardId String
+  card Card @relation(fields: [cardId], references: [id])
+  amount Int
+  paid Int
+  statementDate DateTime @db.Date
+  dueDate DateTime @db.Date
+  archivedAt DateTime @default(now())
+}
+model Emi {
+  id String @id @default(cuid())
+  cardId String
+  card Card @relation(fields: [cardId], references: [id])
+  name String
+  originalAmount Int
+  principalRemaining Int
+  monthlyEmi Int
+  nextPrincipal Int
+  nextInterest Int
+  totalInstallments Int
+  installmentsPaid Int
+  nextDate DateTime @db.Date
+  anchorDay Int
+}
+model Expense {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  accountId String?
+  account Account? @relation(fields: [accountId], references: [id])
+  cardId String?
+  card Card? @relation(fields: [cardId], references: [id])
+  amount Int
+  date DateTime @db.Date
+  category String
+  method String
+  description String?
+  essentiality String
+}
+model Payment {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  accountId String
+  account Account @relation(fields: [accountId], references: [id])
+  cardId String?
+  card Card? @relation(fields: [cardId], references: [id])
+  commitmentId String?
+  commitment Commitment? @relation(fields: [commitmentId], references: [id])
+  destinationAccountId String?
+  amount Int
+  date DateTime @db.Date
+  type String
+  notes String?
+}
+model Audit {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  requestId String @unique
+  requestHash String?
+  action String
+  entityId String
+  createdAt DateTime @default(now())
+}
+model RiskSnapshot {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  score Int?
+  version String @default("basic-v1")
+  rules Json
+  createdAt DateTime @default(now())
+}

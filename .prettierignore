@@ -1,0 +1,13 @@
+node_modules
+.next
+src/generated
+package-lock.json
+.local-db
+backups
+artifacts
+test-results
+playwright-report
+prisma/migrations
+*.tsbuildinfo
+.env*
+.tools
