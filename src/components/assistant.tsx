@@ -5,7 +5,7 @@ import { type Data } from '@/lib/finance';
 import { paise } from './decisions';
 
 export function FinanceAssistant({ data }: { data: Data }) {
-  const [intent, setIntent] = useState<AssistantIntent>('RISK'),
+  const [intent, setIntent] = useState<AssistantIntent>('TODAY'),
     [amount, setAmount] = useState('5000'),
     [answer, setAnswer] = useState<ReturnType<typeof explainFinance> | null>(null);
   return (
@@ -20,20 +20,28 @@ export function FinanceAssistant({ data }: { data: Data }) {
           className="planning-budget-form"
           onSubmit={(e) => {
             e.preventDefault();
-            setAnswer(explainFinance(data, intent, intent === 'SPEND' ? paise(amount) : 0));
+            setAnswer(
+              explainFinance(
+                data,
+                intent,
+                ['SPEND', 'EMERGENCY'].includes(intent) ? paise(amount) : 0,
+              ),
+            );
           }}
         >
           <label>
             Question
             <select value={intent} onChange={(e) => setIntent(e.target.value as AssistantIntent)}>
+              <option value="TODAY">What should I do now?</option>
               <option value="SPEND">Can I spend this amount?</option>
+              <option value="EMERGENCY">How do I adjust an emergency expense?</option>
               <option value="PAY">Which bill should I pay first?</option>
               <option value="RISK">Why is my risk high?</option>
               <option value="OVERSPEND">Where did I overspend?</option>
               <option value="GOAL">How am I doing on my first goal?</option>
             </select>
           </label>
-          {intent === 'SPEND' && (
+          {(intent === 'SPEND' || intent === 'EMERGENCY') && (
             <label>
               Amount (INR)
               <input

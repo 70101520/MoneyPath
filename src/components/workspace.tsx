@@ -50,6 +50,7 @@ import { FuturePlanning } from './future';
 import { FinanceAssistant } from './assistant';
 import { Integrations } from './integrations';
 import { planningNotifications } from '@/lib/decision';
+import { financialActionPlan } from '@/lib/guidance';
 const navigation = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'income', label: 'Income', icon: ArrowDownLeft },
@@ -94,6 +95,7 @@ export function Workspace({
     [search, setSearch] = useState('');
   const active = demo ? demoSection : section;
   const s = calculate(data);
+  const guidance = financialActionPlan(data);
   const open = (kind: string, initial?: Record<string, unknown>) => setForm({ kind, initial });
   const go = (id: string) => {
     if (demo) setDemoSection(id);
@@ -509,6 +511,33 @@ export function Workspace({
                   </>
                 )}
               </div>
+              <section className="panel planning-insights">
+                <div className="panel-heading">
+                  <div>
+                    <h2>{guidance.headline}</h2>
+                    <p>Updates automatically from the records you enter.</p>
+                  </div>
+                  <button className="text-button" onClick={() => go('assistant')}>
+                    Ask MoneyPath <ArrowRight size={14} />
+                  </button>
+                </div>
+                {guidance.actions.slice(0, 4).map((action) => (
+                  <button
+                    className="action-row"
+                    key={`${action.level}-${action.title}`}
+                    onClick={() => go(action.section)}
+                  >
+                    <span className={`badge ${action.level === 'NOW' ? 'danger' : 'neutral'}`}>
+                      {action.level}
+                    </span>
+                    <span>
+                      <strong>{action.title}</strong>
+                      <small>{action.detail}</small>
+                    </span>
+                    <ChevronRight size={17} />
+                  </button>
+                ))}
+              </section>
               <div className="detail-grid">
                 <section className="panel payments-panel">
                   <div className="panel-heading">

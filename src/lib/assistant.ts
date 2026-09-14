@@ -2,8 +2,10 @@ import { calculate, INR, type Data } from './finance';
 import { paymentPriority } from './decision';
 import { spendingReport } from './planning';
 import { goalSummary } from './goals';
+import { emergencyAdjustment, financialActionPlan } from './guidance';
 
-export type AssistantIntent = 'SPEND' | 'PAY' | 'RISK' | 'OVERSPEND' | 'GOAL';
+export type AssistantIntent =
+  'TODAY' | 'SPEND' | 'EMERGENCY' | 'PAY' | 'RISK' | 'OVERSPEND' | 'GOAL';
 export function explainFinance(data: Data, intent: AssistantIntent, amount = 0) {
   const s = calculate(data);
   if (s.required.length)
@@ -12,6 +14,24 @@ export function explainFinance(data: Data, intent: AssistantIntent, amount = 0) 
       answer: `Complete ${s.required.join(', ')} before relying on this answer.`,
       facts: [],
     };
+  if (intent === 'TODAY') {
+    const plan = financialActionPlan(data);
+    return {
+      title: plan.headline,
+      answer: plan.actions[0]?.detail ?? 'No action is required.',
+      facts: plan.actions
+        .slice(1)
+        .map((action) => `${action.level}: ${action.title} — ${action.detail}`),
+    };
+  }
+  if (intent === 'EMERGENCY') {
+    const plan = emergencyAdjustment(data, amount);
+    return {
+      title: plan.title,
+      answer: plan.steps[0] ?? 'Enter a positive emergency amount.',
+      facts: plan.steps.slice(1),
+    };
+  }
   if (intent === 'SPEND')
     return {
       title:
