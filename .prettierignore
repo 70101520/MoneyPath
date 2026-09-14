@@ -11,3 +11,4 @@ prisma/migrations
 *.tsbuildinfo
 .env*
 .tools
+next-env.d.ts

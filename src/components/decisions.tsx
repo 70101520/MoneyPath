@@ -585,10 +585,16 @@ function DebtPlanner({ data, demo }: { data: Data; demo: boolean }) {
   const cards = data.cards.filter(
     (c) => c.outstanding + c.emis.reduce((n, e) => n + e.principalRemaining, 0) > 0,
   );
+  const usedRanks = new Set(
+    saved?.assumptions.filter((a) => cards.some((c) => c.id === a.cardId)).map((a) => a.rank) ?? [],
+  );
   const [fields, setFields] = useState(
     Object.fromEntries(
-      cards.map((c, i) => {
+      cards.map((c) => {
         const a = saved?.assumptions.find((a) => a.cardId === c.id);
+        const rank =
+          a?.rank ?? Array.from({ length: 100 }, (_, i) => i + 1).find((n) => !usedRanks.has(n));
+        if (rank !== undefined) usedRanks.add(rank);
         return [
           c.id,
           {
@@ -600,7 +606,7 @@ function DebtPlanner({ data, demo }: { data: Data; demo: boolean }) {
             minimum: a
               ? String(a.minimum / 100)
               : String(Math.max(0, c.minimumDue - c.statementPaid) / 100),
-            rank: String(a?.rank ?? i + 1),
+            rank: rank === undefined ? '' : String(rank),
           },
         ];
       }),

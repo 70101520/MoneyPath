@@ -236,6 +236,10 @@ test('owner authentication, persisted entry, and card repayment work end to end'
     essentiality: 'WANT',
   });
   await page.getByRole('button', { name: 'Get out of debt', exact: true }).click();
+  const ranks = await page
+    .getByRole('spinbutton')
+    .evaluateAll((nodes) => nodes.map((n) => (n as HTMLInputElement).value));
+  expect(new Set(ranks).size).toBe(ranks.length);
   await page.getByLabel('Monthly debt payment (INR)', { exact: true }).fill('500');
   await page.getByLabel(/I confirm these forecast assumptions/).check();
   await page.getByRole('button', { name: 'Save debt scenario', exact: true }).click();
