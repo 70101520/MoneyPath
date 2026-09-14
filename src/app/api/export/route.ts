@@ -43,6 +43,16 @@ export async function GET() {
       'Account transfer',
     ]);
   });
+  (data.cashAdvances ?? []).forEach((entry) =>
+    rows.push([
+      'Credit-card cash advance (new debt, not income)',
+      dateLabel(entry.date),
+      entry.notes,
+      entry.amount / 100,
+      'Cash advance',
+      'Credit card to account',
+    ]),
+  );
   return new Response('\uFEFF' + rows.map((r) => r.map(quote).join(',')).join('\r\n'), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

@@ -221,6 +221,14 @@ export type PaymentData = {
   notes: string | null;
 };
 export type Data = {
+  cashAdvances?: {
+    id: string;
+    cardId: string;
+    accountId: string;
+    amount: number;
+    date: string;
+    notes: string | null;
+  }[];
   investments?: InvestmentData[];
   investmentEvents?: InvestmentEventData[];
   goals?: GoalData[];
@@ -552,7 +560,11 @@ export function calculate(data: Data, asOf = today()) {
     s.goalReserve,
     s.extraDebtReserve,
   ]);
-  const newSpending = expenses.filter((e) => e.cardId).reduce((sum, e) => sum + e.amount, 0);
+  const cashAdvanceDebt = (data.cashAdvances ?? [])
+    .filter((entry) => entry.date.slice(0, 7) === month && entry.date.slice(0, 10) <= asOf)
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const newSpending =
+    expenses.filter((e) => e.cardId).reduce((sum, e) => sum + e.amount, 0) + cashAdvanceDebt;
   const debtPaid = data.payments
     .filter((p) => p.cardId && p.date.slice(0, 7) === month)
     .reduce((sum, p) => sum + p.amount, 0);
@@ -688,6 +700,7 @@ export function calculate(data: Data, asOf = today()) {
     debt,
     oldBill,
     newSpending,
+    cashAdvanceDebt,
     debtPaid,
     netDebtReduction: debtReduction(debtPaid, newSpending),
     mandatory,

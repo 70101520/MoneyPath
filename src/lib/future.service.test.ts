@@ -125,10 +125,21 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')(
         paymentReserve: 0,
       });
       await run({ kind: 'personalAdvance', id: debt!.id, accountId, amount: 30000, date: today() });
+      await run({
+        kind: 'personalTransfer',
+        direction: 'PAYABLE',
+        reference: 'New friend borrowing',
+        accountId,
+        amount: 5000,
+        date: today(),
+        dueDate: null,
+        priority: 'NORMAL',
+      });
       const data = await readData(userId);
       expect(data.goals![0].expectedMoney).toBe(75000);
       expect(data.personalEntries![0].amount).toBe(40000);
-      expect(data.accounts[0].balance).toBe(1010000);
+      expect(data.accounts[0].balance).toBe(1015000);
+      expect(data.personalEntries).toHaveLength(2);
       expect(data.incomes).toHaveLength(0);
     });
   },

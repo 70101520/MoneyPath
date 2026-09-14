@@ -333,7 +333,7 @@ export function Workspace({
           {active === 'integrations' ? (
             <Integrations demo={demo} data={data} />
           ) : active === 'assistant' ? (
-            <FinanceAssistant data={data} />
+            <FinanceAssistant data={data} demo={demo} />
           ) : ['investments', 'goals', 'what-if'].includes(active) ? (
             <FuturePlanning data={data} section={active} demo={demo} />
           ) : active === 'receivables' || active === 'payables' ? (

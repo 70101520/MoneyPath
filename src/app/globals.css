@@ -4,6 +4,50 @@
   gap: 20px;
   min-width: 0;
 }
+
+.chat-panel {
+  display: grid;
+  gap: 1rem;
+}
+.chat-messages {
+  display: grid;
+  gap: 0.75rem;
+  max-height: 34rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.chat-message {
+  max-width: 88%;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: #f2f6f3;
+  overflow-wrap: anywhere;
+}
+.chat-message.user {
+  justify-self: end;
+  background: #276f60;
+  color: white;
+}
+.chat-message p {
+  margin: 0.3rem 0 0;
+}
+.chat-message.assistant {
+  justify-self: start;
+}
+.chat-form {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+.chat-form textarea {
+  min-height: 5rem;
+}
+@media (max-width: 640px) {
+  .chat-message {
+    max-width: 96%;
+  }
+}
 .planning-month,
 .planning-budget-form label {
   display: grid;

@@ -15,3 +15,9 @@ The guidance order is:
 9. Fund marriage and other goals from confirmed money and a monthly target. Show expected money separately.
 
 Salary amount, salary day, accounts, card balances, commitments, budgets, investments and goals are user data. No personal amount is hard-coded into these rules or committed to Git.
+
+## Conversational entry
+
+Finance assistant chat supports common Hinglish/English questions and transaction phrases. It can prepare received salary, ordinary account expenses, new friend borrowing and credit-card cash advances. It always shows the interpreted amount and account/card before a separate confirmation saves the record. Purchase and shortfall questions are read-only. Chat history and any private transaction notes are encrypted in the database.
+
+Credit-card cash advances increase the selected account and card debt once; they are not income. Because issuer fees and interest are unknown at withdrawal time, MoneyPath warns clearly and requires those charges to be recorded separately when known.

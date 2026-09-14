@@ -20,6 +20,25 @@ const date = z
 const postedDate = date.refine((v) => v <= today(), 'Posted transactions cannot be future dated');
 export const commandSchema = z.discriminatedUnion('kind', [
   z.object({
+    kind: z.literal('cashAdvance'),
+    cardId: id,
+    accountId: id,
+    amount: positive,
+    date: postedDate,
+    notes,
+  }),
+  z.object({
+    kind: z.literal('personalTransfer'),
+    direction: z.enum(['RECEIVABLE', 'PAYABLE']),
+    reference: text,
+    accountId: id,
+    amount: positive,
+    date: postedDate,
+    dueDate: date.nullable(),
+    priority: z.enum(['HIGH', 'NORMAL', 'LOW']),
+    notes,
+  }),
+  z.object({
     kind: z.literal('investment'),
     name: text,
     investmentKind: z.enum(['SIP', 'GOLD', 'FIXED_DEPOSIT', 'PPF', 'NPS', 'OTHER']),

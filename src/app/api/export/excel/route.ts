@@ -46,6 +46,14 @@ export async function GET() {
       p.amount / 100,
     ]),
   );
+  (data.cashAdvances ?? []).forEach((entry) =>
+    transactions.push([
+      'Credit-card cash advance (new debt, not income)',
+      entry.date.slice(0, 10),
+      entry.notes ?? '',
+      entry.amount / 100,
+    ]),
+  );
   const investments: unknown[][] = [
     [
       'Name',

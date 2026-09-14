@@ -39,6 +39,30 @@ model User {
   apiTokens ApiToken[]
   pushSubscriptions PushSubscription[]
   notificationDeliveries NotificationDelivery[]
+  chatMessages ChatMessage[]
+  cashAdvances CashAdvance[]
+}
+model ChatMessage {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role String
+  content String
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model CashAdvance {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  cardId String
+  card Card @relation(fields: [cardId], references: [id])
+  accountId String
+  account Account @relation(fields: [accountId], references: [id])
+  amount Int
+  date DateTime @db.Date
+  notes String?
+  @@index([userId, date])
 }
 model PushSubscription {
   id String @id
@@ -226,6 +250,7 @@ model Account {
   settlements PersonalSettlement[]
   advances PersonalAdvance[]
   investmentEvents InvestmentEvent[]
+  cashAdvances CashAdvance[]
 }
 model Income {
   id String @id @default(cuid())
@@ -282,6 +307,7 @@ model Card {
   payments Payment[]
   emis Emi[]
   statements CardStatement[]
+  cashAdvances CashAdvance[]
 }
 model CardStatement {
   id String @id @default(cuid())

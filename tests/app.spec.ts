@@ -86,6 +86,11 @@ test('planning, Phase 3, and Phase 4 screens fit mobile without client errors', 
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await page.getByRole('button', { name: section, exact: true }).click();
     await expect(page.locator('.planning')).toBeVisible();
+    if (section === 'Finance assistant') {
+      await page.getByRole('textbox', { name: 'Message' }).fill('Can I buy a phone price 50000?');
+      await page.getByRole('button', { name: 'Send' }).click();
+      await expect(page.getByText(/^No\./)).toBeVisible();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

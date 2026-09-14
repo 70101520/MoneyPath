@@ -479,17 +479,21 @@ export function historyReports(data: Data, endMonth = today().slice(0, 7)) {
         data.personalEntries?.some((e) => e.id === p.entryId && e.direction === 'PAYABLE'),
       )
       .reduce((n, p) => n + p.amount, 0);
+    const cashAdvances = (data.cashAdvances ?? [])
+      .filter((entry) => entry.date.slice(0, 7) === month)
+      .reduce((n, entry) => n + entry.amount, 0);
     const cashOut = cashExpenses + spending.debtPayments + personalOut;
     const snapshots = (data.risks ?? []).filter((r) => localDay(r.createdAt).slice(0, 7) === month);
     const latest = snapshots[0];
     return {
       ...spending,
-      cashIn: received + personalIn,
+      cashIn: received + personalIn + cashAdvances,
       cashOut,
-      netCashFlow: received + personalIn - cashOut,
+      netCashFlow: received + personalIn + cashAdvances - cashOut,
+      cashAdvances,
       personalIn,
       personalOut,
-      netDebtReduction: spending.debtPayments - spending.cardSpending,
+      netDebtReduction: spending.debtPayments - spending.cardSpending - cashAdvances,
       score: latest?.score ?? null,
       version: latest?.version ?? null,
       metrics: latest?.metrics ?? null,

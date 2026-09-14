@@ -24,6 +24,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     investments,
     investmentEvents,
     goals,
+    cashAdvances,
   ] = await Promise.all([
     tx.user.findUniqueOrThrow({ where: { id: userId } }),
     tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
@@ -52,6 +53,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     tx.investment.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
     tx.investmentEvent.findMany({ where: { userId }, orderBy: [{ date: 'desc' }, { id: 'desc' }] }),
     tx.goal.findMany({ where: { userId }, orderBy: { targetDate: 'asc' } }),
+    tx.cashAdvance.findMany({ where: { userId }, orderBy: [{ date: 'desc' }, { id: 'desc' }] }),
   ]);
   const settings = {
     name: user.name,
@@ -79,6 +81,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
       investments: investments.map((e) => ({ ...e, notes: decrypt(e.notes) })),
       investmentEvents: investmentEvents.map((e) => ({ ...e, notes: decrypt(e.notes) })),
       goals: goals.map((e) => ({ ...e, notes: decrypt(e.notes) })),
+      cashAdvances: cashAdvances.map((e) => ({ ...e, notes: decrypt(e.notes) })),
       revision: tokenHash(
         JSON.stringify([
           settings,
@@ -97,6 +100,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
           investments,
           investmentEvents,
           goals,
+          cashAdvances,
         ]),
       ),
       accounts,
@@ -131,6 +135,67 @@ export async function execute(userId: string, requestId: string, command: Comman
           let entityId = userId;
           const c = command;
           switch (c.kind) {
+            case 'cashAdvance': {
+              const target = await card(c.cardId);
+              if (target.status !== 'ACTIVE') throw new Error('Card is not active');
+              await account(c.accountId);
+              await tx.card.update({
+                where: { id: c.cardId },
+                data: { outstanding: { increment: c.amount }, availableLimit: null },
+              });
+              await tx.account.update({
+                where: { id: c.accountId },
+                data: { balance: { increment: c.amount } },
+              });
+              const row = await tx.cashAdvance.create({
+                data: {
+                  userId,
+                  cardId: c.cardId,
+                  accountId: c.accountId,
+                  amount: c.amount,
+                  date: day(c.date),
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
+            case 'personalTransfer': {
+              await account(c.accountId);
+              if (c.direction === 'RECEIVABLE') await debit(c.accountId, c.amount);
+              else
+                await tx.account.update({
+                  where: { id: c.accountId },
+                  data: { balance: { increment: c.amount } },
+                });
+              const entry = await tx.personalEntry.create({
+                data: {
+                  userId,
+                  direction: c.direction,
+                  reference: encrypt(c.reference)!,
+                  amount: c.amount,
+                  openingSettled: 0,
+                  settled: 0,
+                  openingDate: day(c.date),
+                  dueDate: c.dueDate ? day(c.dueDate) : null,
+                  priority: c.priority,
+                  paymentReserve: c.direction === 'PAYABLE' ? null : 0,
+                  notes: encrypt(c.notes),
+                },
+              });
+              const row = await tx.personalAdvance.create({
+                data: {
+                  userId,
+                  entryId: entry.id,
+                  accountId: c.accountId,
+                  amount: c.amount,
+                  date: day(c.date),
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
             case 'investment': {
               if (c.maturityDate && c.nextContribution && c.maturityDate < c.nextContribution)
                 throw new Error('Maturity cannot be before the next contribution');
