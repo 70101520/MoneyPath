@@ -31,3 +31,5 @@ Phase 4 integrations, background notifications, AI explanations and mobile API c
 ## Validation
 
 On 14 September 2026: 60 finance/security/database tests passed, the optimized build and TypeScript checks passed, and all five Chromium workflows passed. Browser coverage includes real receipt/repayment forms, reload persistence, unchanged income/expense totals and mobile layout. Restore comparison passed across all 19 tables, including decrypted private references. VM deployment results are recorded in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+Revision `c043f99` is deployed on the testing VM. Its Docker build and all 60 tests passed there, followed by desktop/mobile LAN checks of both new pages and all eight Phase 2 pages. The database and matching environment were backed up before migration; full row counts/digests matched for all 16 pre-existing application tables. Existing owner data and credentials were preserved.
