@@ -1,8 +1,12 @@
 # Testing VM deployment
 
-MoneyPath Phases 1 and 2 and the first Phase 3 increment (Money to receive / Money I owe) are available at **http://192.168.80.128:3000** on the VMware guest. Phase 3 remains in progress; see [PHASE3.md](PHASE3.md). Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
+MoneyPath Phases 1–3 and the Phase 4 foundation are available at **http://192.168.80.128:3000** on the VMware guest. See [PHASE3.md](PHASE3.md) and [PHASE4.md](PHASE4.md). Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
 
-The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Current tested application revision: `c043f99` (first Phase 3 increment). Earlier releases: `c47eb9b` (Phase 1), `6fbd595` (budgets increment) and `79ddbdb` (full Phase 2). Subsequent documentation commits do not change the tested image.
+The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Current tested application revision: `b0af09a` (complete Phase 3 and Phase 4 foundation). Earlier releases: `c47eb9b` (Phase 1), `6fbd595` (budgets increment), `79ddbdb` (full Phase 2) and `c043f99` (first Phase 3 increment). Subsequent documentation commits do not change the tested image.
+
+The current Docker build and all 66 finance/security/database tests passed on the VM. Nine migrations are applied. Before migration, the app was stopped and its database and matching environment were backed up under `/opt/moneypath/backups/before-phase3-complete-20260914T180955Z.*`. Full row counts/digests for all 18 pre-existing application tables matched after migration. The old image is tagged `moneypath-app:before-phase3-complete`.
+
+Final LAN Chromium checks passed on desktop and mobile across all planning, personal-balance, investment, goal, simulator, assistant and integration screens. Authentication redirects, anonymous API rejection, purchase simulation and transaction-form checks passed without client errors or page overflow.
 
 The Phase 3 Docker build and all 60 finance/security/database tests passed on the VM. Seven migrations are applied. Before migration, the app was briefly stopped and its database and matching environment were backed up under `/opt/moneypath/backups/before-phase3-first-20260914T131749Z.*`. Full row counts/digests for all 16 pre-existing application tables matched after migration, preserving posted records, settings and sessions. The old image is tagged `moneypath-app:before-phase3-first`.
 
