@@ -1,3 +1,4 @@
+import { personalSummary, type PersonalEntryData, type SettlementData } from './personal';
 // All authoritative amounts are integer paise. No floating point currency math.
 export const INR = (paise: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -220,6 +221,8 @@ export type PaymentData = {
   notes: string | null;
 };
 export type Data = {
+  personalEntries?: PersonalEntryData[];
+  settlements?: SettlementData[];
   revision?: string;
   salaryPlans?: {
     id: string;
@@ -243,7 +246,14 @@ export type Data = {
     version: string;
     createdAt: string;
     rules: RiskRule[];
-    metrics: { cash: number; debt: number; assets: number; netWorth: number } | null;
+    metrics: {
+      cash: number;
+      debt: number;
+      assets: number;
+      netWorth: number;
+      privateDebt?: number;
+      totalDebt?: number;
+    } | null;
   }[];
   budgets?: { id: string; month: string; category: string; amount: number }[];
   settings: Settings;
@@ -274,6 +284,7 @@ export function emiOccurrences(e: EmiData, through: string): { date: string; amo
   return result;
 }
 export function riskScore(input: {
+  debtLabel?: string;
   income: number | null;
   debt: number;
   oldBill: number;
@@ -294,7 +305,8 @@ export function riskScore(input: {
     input.raw === null
   )
     return { score: null, label: 'Information Required', rules };
-  if (input.debt > input.income) add('debt-income', 15, 'Card debt exceeds one month of income');
+  if (input.debt > input.income)
+    add('debt-income', 15, `${input.debtLabel ?? 'Card debt'} exceeds one month of income`);
   if (input.newSpending > 0 && input.oldBill > 0)
     add('new-debt', 15, 'New card spending while an old bill remains');
   if (input.utilization !== null && input.utilization > 0.5)
@@ -459,7 +471,10 @@ export function calculate(data: Data, asOf = today()) {
   ).filter((k) => s[k] === null);
   if (!data.accounts.length) required.push('bank account opening balance');
   required.push(...issues);
-  const mandatory = commitmentReserve + cardReserve + emiReserve;
+  const personal = personalSummary(data.personalEntries ?? [], asOf, horizon);
+  required.push(...personal.required);
+  obligations.push(...personal.obligations);
+  const mandatory = commitmentReserve + cardReserve + emiReserve + personal.reserve;
   const safe = safeToSpend(required.length ? null : cash, [
     mandatory,
     s.essentialReserve,
@@ -476,7 +491,8 @@ export function calculate(data: Data, asOf = today()) {
     .reduce((sum, c) => sum + monthlyReserve(c.amount, c.intervalMonths), 0);
   const risk = riskScore({
     income: s.monthlyIncome,
-    debt,
+    debt: debt + personal.liabilities,
+    debtLabel: personal.liabilities > 0 ? 'Card and private debt' : 'Card debt',
     oldBill,
     newSpending,
     utilization: totalLimit ? debt / totalLimit : null,
@@ -508,14 +524,28 @@ export function calculate(data: Data, asOf = today()) {
         points: 10,
         reason: 'Recorded expenses exceed received income this month',
       });
+    const personalMovements = (data.settlements ?? []).filter((p) => p.date.slice(0, 7) === month);
+    const personalIn = personalMovements
+      .filter((p) =>
+        data.personalEntries?.some((e) => e.id === p.entryId && e.direction === 'RECEIVABLE'),
+      )
+      .reduce((n, p) => n + p.amount, 0);
+    const personalOut = personalMovements
+      .filter((p) =>
+        data.personalEntries?.some((e) => e.id === p.entryId && e.direction === 'PAYABLE'),
+      )
+      .reduce((n, p) => n + p.amount, 0);
     if (
-      income > 0 &&
-      expenses.filter((e) => e.accountId).reduce((n, e) => n + e.amount, 0) + debtPaid > income
+      income + personalIn > 0 &&
+      expenses.filter((e) => e.accountId).reduce((n, e) => n + e.amount, 0) +
+        debtPaid +
+        personalOut >
+        income + personalIn
     )
       risk.rules.push({
         id: 'negative-account-flow',
         points: 10,
-        reason: 'Recorded account outflows exceed received income this month',
+        reason: 'Recorded account outflows exceed recorded inflows this month',
       });
     if (newSpending > debtPaid)
       risk.rules.push({
@@ -597,7 +627,11 @@ export function calculate(data: Data, asOf = today()) {
     emiReserve,
     safe,
     risk,
-    riskVersion: 'planning-v2',
+    riskVersion: data.personalEntries?.length ? 'personal-v3' : 'planning-v2',
+    privateDebt: personal.liabilities,
+    privateDebtReserve: personal.reserve,
+    expectedReceivables: personal.receivables,
+    totalDebt: debt + personal.liabilities,
     required,
     categories,
     obligations: obligations.sort((a, b) => a.date.localeCompare(b.date)),

@@ -18,6 +18,8 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     salaryPlans,
     debtPlan,
     risks,
+    personalEntries,
+    settlements,
   ] = await Promise.all([
     tx.user.findUniqueOrThrow({ where: { id: userId } }),
     tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
@@ -37,6 +39,11 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
       where: { userId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     }),
+    tx.personalEntry.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
+    tx.personalSettlement.findMany({
+      where: { userId },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }),
   ]);
   const settings = {
     name: user.name,
@@ -54,6 +61,12 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
       salaryPlans,
       debtPlan,
       risks,
+      personalEntries: personalEntries.map((e) => ({
+        ...e,
+        reference: decrypt(e.reference),
+        notes: decrypt(e.notes),
+      })),
+      settlements: settlements.map((e) => ({ ...e, notes: decrypt(e.notes) })),
       revision: tokenHash(
         JSON.stringify([
           settings,
@@ -66,6 +79,8 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
           budgets,
           salaryPlans,
           debtPlan,
+          personalEntries,
+          settlements,
         ]),
       ),
       accounts,
@@ -100,6 +115,82 @@ export async function execute(userId: string, requestId: string, command: Comman
           let entityId = userId;
           const c = command;
           switch (c.kind) {
+            case 'personalEntry': {
+              const row = await tx.personalEntry.create({
+                data: {
+                  userId,
+                  direction: c.direction,
+                  reference: encrypt(c.reference)!,
+                  amount: c.amount,
+                  openingSettled: c.openingSettled,
+                  settled: c.openingSettled,
+                  openingDate: day(c.openingDate),
+                  dueDate: c.dueDate ? day(c.dueDate) : null,
+                  priority: c.priority,
+                  paymentReserve: c.direction === 'PAYABLE' ? c.paymentReserve : 0,
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = row.id;
+              break;
+            }
+            case 'personalSchedule': {
+              const row = await tx.personalEntry.findFirstOrThrow({ where: { id: c.id, userId } });
+              if (c.paymentReserve !== null && c.paymentReserve > row.amount - row.settled)
+                throw new Error('Reserve exceeds remaining balance');
+              await tx.personalEntry.update({
+                where: { id: c.id },
+                data: {
+                  reference: encrypt(c.reference)!,
+                  dueDate: c.dueDate ? day(c.dueDate) : null,
+                  priority: c.priority,
+                  paymentReserve: row.direction === 'PAYABLE' ? c.paymentReserve : 0,
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = c.id;
+              break;
+            }
+            case 'personalSettlement': {
+              const row = await tx.personalEntry.findFirstOrThrow({ where: { id: c.id, userId } });
+              if (c.amount > row.amount - row.settled)
+                throw new Error('Settlement exceeds remaining balance');
+              if (day(c.date) < row.openingDate)
+                throw new Error('Settlement cannot be before the opening snapshot date');
+              const latest = await tx.personalSettlement.findFirst({
+                where: { entryId: c.id },
+                orderBy: { date: 'desc' },
+              });
+              if (latest && day(c.date) < latest.date)
+                throw new Error('Enter settlements in date order');
+              await account(c.accountId);
+              if (row.direction === 'PAYABLE') await debit(c.accountId, c.amount);
+              else
+                await tx.account.update({
+                  where: { id: c.accountId },
+                  data: { balance: { increment: c.amount } },
+                });
+              await tx.personalEntry.update({
+                where: { id: c.id },
+                data: {
+                  settled: { increment: c.amount },
+                  paymentReserve:
+                    row.paymentReserve === null ? null : Math.max(0, row.paymentReserve - c.amount),
+                },
+              });
+              const settlement = await tx.personalSettlement.create({
+                data: {
+                  userId,
+                  entryId: c.id,
+                  accountId: c.accountId,
+                  amount: c.amount,
+                  date: day(c.date),
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = settlement.id;
+              break;
+            }
             case 'priorityCost': {
               if (c.target === 'CARD') {
                 await card(c.id);
@@ -533,7 +624,9 @@ export async function execute(userId: string, requestId: string, command: Comman
                 cash: result.cash,
                 debt: result.debt,
                 assets,
-                netWorth: assets - result.debt,
+                netWorth: assets - result.totalDebt,
+                privateDebt: result.privateDebt,
+                totalDebt: result.totalDebt,
               },
             },
           });

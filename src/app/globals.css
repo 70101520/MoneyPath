@@ -25,6 +25,28 @@
   min-width: 0;
   width: 100%;
 }
+.planning textarea {
+  min-height: 90px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cad6cf;
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
+}
+.personal-balances button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.personal-balances h2,
+.personal-balances p,
+.personal-balances summary {
+  overflow-wrap: anywhere;
+}
+.personal-balances .heading-actions {
+  flex-wrap: wrap;
+}
 .planning-assumption {
   border: 1px solid #cad6cf;
   border-radius: 8px;

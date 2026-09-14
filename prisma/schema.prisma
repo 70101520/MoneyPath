@@ -30,6 +30,38 @@ model User {
   budgets Budget[]
   salaryPlans SalaryPlan[]
   debtPlan DebtPlan?
+  personalEntries PersonalEntry[]
+  settlements PersonalSettlement[]
+}
+model PersonalEntry {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  direction String
+  reference String
+  amount Int
+  openingSettled Int @default(0)
+  settled Int @default(0)
+  openingDate DateTime @db.Date
+  dueDate DateTime? @db.Date
+  priority String @default("NORMAL")
+  paymentReserve Int?
+  notes String?
+  settlements PersonalSettlement[]
+  @@index([userId, direction])
+}
+model PersonalSettlement {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  entryId String
+  entry PersonalEntry @relation(fields: [entryId], references: [id])
+  accountId String
+  account Account @relation(fields: [accountId], references: [id])
+  amount Int
+  date DateTime @db.Date
+  notes String?
+  @@index([userId, date])
 }
 model SalaryPlan {
   id String @id @default(cuid())
@@ -88,6 +120,7 @@ model Account {
   incomes Income[]
   expenses Expense[]
   payments Payment[]
+  settlements PersonalSettlement[]
 }
 model Income {
   id String @id @default(cuid())

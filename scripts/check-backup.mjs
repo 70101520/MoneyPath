@@ -68,6 +68,9 @@ async function checkEncryptedFields(client) {
     ['Expense', 'description'],
     ['Income', 'notes'],
     ['Payment', 'notes'],
+    ['PersonalEntry', 'reference'],
+    ['PersonalEntry', 'notes'],
+    ['PersonalSettlement', 'notes'],
   ]) {
     const rows = await client.query(
       `SELECT ${quote(column)} AS value FROM ${quote(table)} WHERE ${quote(column)} IS NOT NULL`,

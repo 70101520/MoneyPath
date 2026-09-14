@@ -19,6 +19,42 @@ const date = z
   );
 const postedDate = date.refine((v) => v <= today(), 'Posted transactions cannot be future dated');
 export const commandSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('personalEntry'),
+      direction: z.enum(['RECEIVABLE', 'PAYABLE']),
+      reference: text,
+      amount: positive,
+      openingSettled: money,
+      openingDate: postedDate,
+      dueDate: date.nullable(),
+      priority: z.enum(['HIGH', 'NORMAL', 'LOW']),
+      paymentReserve: money.nullable(),
+      notes,
+    })
+    .refine(
+      (v) =>
+        v.openingSettled <= v.amount &&
+        (v.paymentReserve === null || v.paymentReserve <= v.amount - v.openingSettled),
+      'Opening settlement and reserve must fit the balance',
+    ),
+  z.object({
+    kind: z.literal('personalSchedule'),
+    id,
+    reference: text,
+    dueDate: date.nullable(),
+    priority: z.enum(['HIGH', 'NORMAL', 'LOW']),
+    paymentReserve: money.nullable(),
+    notes,
+  }),
+  z.object({
+    kind: z.literal('personalSettlement'),
+    id,
+    accountId: id,
+    amount: positive,
+    date: postedDate,
+    notes,
+  }),
   z.object({
     kind: z.literal('priorityCost'),
     id,

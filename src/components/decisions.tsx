@@ -22,7 +22,7 @@ const reserveFields = [
   ['goalReserve', 'Goal reserve'],
   ['extraDebtReserve', 'Extra debt repayment reserve'],
 ] as const;
-function paise(value: string) {
+export function paise(value: string) {
   if (!/^\d+(\.\d{1,2})?$/.test(value))
     throw new Error('Enter INR with at most two decimal places.');
   const [whole, fraction = ''] = value.split('.');
@@ -31,7 +31,7 @@ function paise(value: string) {
     throw new Error('Amount must be at most ₹1 crore.');
   return n;
 }
-function useSave(demo: boolean) {
+export function useSave(demo: boolean) {
   const router = useRouter(),
     pending = useRef<{ body: string; id: string } | null>(null);
   const [message, setMessage] = useState(''),
@@ -56,6 +56,7 @@ function useSave(demo: boolean) {
       pending.current = null;
       setMessage('Plan saved.');
       router.refresh();
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save. Retry to confirm.');
     } finally {
@@ -210,14 +211,29 @@ export function Decisions({
             {o.payable === null ? 'Information Required' : INR(o.payable)}.
           </p>
           {o.canRecord && o.action !== 'Reserve now' && o.payable !== null && o.payable > 0 && (
-            <button className="button primary" onClick={() => pay(o.id, o.kind, o.payable!)}>
+            <button
+              className="button primary"
+              onClick={() =>
+                o.kind === 'Private liability'
+                  ? navigate('payables')
+                  : pay(o.id, o.kind, o.payable!)
+              }
+            >
               Record payment for {o.name}
             </button>
           )}
           {o.action === 'Reserve now' && (
             <button
               className="text-button"
-              onClick={() => navigate(o.kind === 'EMI reserve' ? 'emi' : 'commitments')}
+              onClick={() =>
+                navigate(
+                  o.kind === 'EMI reserve'
+                    ? 'emi'
+                    : o.kind === 'Private liability'
+                      ? 'payables'
+                      : 'commitments',
+                )
+              }
             >
               Review reserve
             </button>
@@ -370,6 +386,7 @@ function SalaryPlan({ data, demo }: { data: Data; demo: boolean }) {
           ...result.groups.map((g) => `${g.category}: ${INR(g.amount)}`),
           `Card statements: ${INR(result.cardReserve)}`,
           `Unposted EMI reserves: ${INR(result.emiReserve)}`,
+          `Private liability reserves: ${INR(result.privateDebtReserve)}`,
         ]}
       />
       <Details
@@ -859,8 +876,8 @@ function Reports({ data }: { data: Data }) {
         title="Recorded history, not reconstructed balances"
         lines={[
           'Twelve calendar months ending in the selected month. The current month is incomplete. Transaction totals include only recorded entries; zero does not establish complete records.',
-          'Account cash flow sums received income minus account-funded expenses and card repayments. Internal investment transfers are excluded from net account flow and shown separately. Card purchases count as expenses, not account cash outflow.',
-          'Debt and tracked net worth use the last saved snapshot in each month, not an assumed month-end balance. Earlier snapshots without balance metrics show Information Required. Tracked net worth is recorded accounts minus card and EMI debt; untracked assets, personal loans and receivables are excluded.',
+          'Account cash flow includes received income and settled receivables, less account-funded expenses, card repayments and private principal repayments. Internal investment transfers are excluded. Principal settlements are not counted again as income or expenses.',
+          'Debt and tracked net worth use the last saved snapshot in each month. Earlier snapshots without balance metrics show Information Required. New personal-v3 snapshots deduct recorded private liabilities as well as card and EMI debt from accounts. Earlier snapshots excluded private liabilities; compare versions carefully. Expected receivables and untracked assets remain excluded.',
         ]}
       />
       <Chart rows={points} field="debt" label="Recorded card debt snapshots" />
@@ -879,7 +896,9 @@ function Reports({ data }: { data: Data }) {
                 'Net account flow',
                 'Card spending',
                 'Debt repaid',
-                'Net debt reduction',
+                'Net card debt reduction',
+                'Receivable settlements',
+                'Private repayments',
                 'Investment transfers',
                 'Budget overruns',
                 'Debt snapshot',
@@ -904,6 +923,8 @@ function Reports({ data }: { data: Data }) {
                   r.cardSpending,
                   r.debtPayments,
                   r.netDebtReduction,
+                  r.personalIn,
+                  r.personalOut,
                   r.investmentTransfers,
                 ].map((v, i) => (
                   <td key={i}>{INR(v)}</td>

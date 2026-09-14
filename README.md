@@ -1,8 +1,10 @@
 # MoneyPath
 
-A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 provides authentication and transaction accounting. Phase 2 adds budgets, spending analysis, salary allocation, payment priorities, purchase simulation, debt payoff scenarios, in-app reminders and versioned risk/history reports. See [Phase 2 usage and calculation assumptions](docs/PHASE2.md). Phases 3 and 4 remain pending.
+A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 provides authentication and transaction accounting. Phase 2 adds budgets, spending analysis, salary allocation, payment priorities, purchase simulation, debt payoff scenarios, in-app reminders and versioned risk/history reports. See [Phase 2 usage and calculation assumptions](docs/PHASE2.md). Phase 3 is in progress; Phase 4 remains pending.
 
 Read [the architecture, ER diagram, calculation rules and phased roadmap](docs/ARCHITECTURE.md) before extending the application. The executable database schema is [prisma/schema.prisma](prisma/schema.prisma).
+
+Phase 3 has started with **Money to receive** and **Money I owe**, including principal settlements and private-debt reservations. See [Phase 3 usage and remaining scope](docs/PHASE3.md).
 
 ## Start with Docker
 
@@ -76,7 +78,7 @@ For a POSIX shell: `SEED_SAMPLE_DATA=yes npm run db:seed`. Seeding refuses a non
 - Monthly debt reduction = card payments minus recorded new card purchases and interest. Opening snapshots are not new transactions in that metric.
 - Posted records are immutable in Phase 1. Settings, commitments and EMI schedules can be edited. Corrections/reversals of posted transactions and opening-balance reconciliation do not yet have a UI; check entries before saving.
 
-Transactions use serializable isolation and unique idempotency keys. Every successful financial command stores an audit entry and versioned risk rules. Missing required inputs produce **Information Required**, and a cash shortfall is displayed separately from zero available money. The current risk engine considers recorded cards, commitments, budgets and available history. It does not assess personal loans, future receivables or other untracked Phase 3 data.
+Transactions use serializable isolation and unique idempotency keys. Every successful financial command stores an audit entry and versioned risk rules. Missing required inputs produce **Information Required**, and a cash shortfall is displayed separately from zero available money. The current risk engine considers recorded cards, commitments, private liabilities, budgets and available history. Expected receivables never increase safe-to-spend cash; untracked assets and liabilities are not inferred.
 
 ## Tests
 

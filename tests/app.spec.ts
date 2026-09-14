@@ -24,6 +24,8 @@ test('sample dashboard and all Phase 1 navigation render without client errors',
     'Get out of debt',
     'Notifications',
     'Reports',
+    'Money to receive',
+    'Money I owe',
   ]) {
     await page.getByRole('button', { name: section, exact: true }).click();
     await expect(page.locator('main h1')).toBeVisible();
@@ -248,6 +250,52 @@ test('owner authentication, persisted entry, and card repayment work end to end'
   await expect(page.getByLabel('Monthly debt payment (INR)', { exact: true })).toHaveValue('500');
   await page.getByRole('button', { name: 'Reports', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Risk history', exact: true })).toBeVisible();
+  const originalPersonal = (await (await api.get('/api/snapshot')).json()).data;
+  const person = 'Receipt test ' + suffix;
+  await page.getByRole('button', { name: 'Money to receive', exact: true }).click();
+  await page.getByLabel('Person or reference', { exact: true }).fill(person);
+  await page.getByLabel('Original amount (INR)', { exact: true }).fill('1000');
+  await page.getByRole('button', { name: 'Save opening balance', exact: true }).click();
+  await page.getByRole('button', { name: 'Receive from ' + person, exact: true }).click();
+  await page.getByLabel('Settlement amount (INR)', { exact: true }).fill('100');
+  await page
+    .getByRole('combobox', { name: 'Settlement account', exact: true })
+    .selectOption(accountId);
+  await page.getByRole('button', { name: 'Record receipt', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Plan saved.');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: person, exact: true })).toBeVisible();
+  const liability = 'Repayment test ' + suffix;
+  await page.getByRole('button', { name: 'Money I owe', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Money I owe', exact: true })).toBeVisible();
+  await page.getByLabel('Person or reference', { exact: true }).fill(liability);
+  await page.getByLabel('Original amount (INR)', { exact: true }).fill('500');
+  await page.getByLabel('Agreed repayment date', { exact: true }).fill(date);
+  await page.getByLabel('Planned cash reserve (INR)', { exact: true }).fill('50');
+  await page.getByRole('button', { name: 'Save opening balance', exact: true }).click();
+  await page.getByRole('button', { name: 'Repay ' + liability, exact: true }).click();
+  await page.getByLabel('Settlement amount (INR)', { exact: true }).fill('100');
+  await page
+    .getByRole('combobox', { name: 'Settlement account', exact: true })
+    .selectOption(accountId);
+  await page.getByRole('button', { name: 'Record repayment', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Plan saved.');
+  const personalAfter = (await (await api.get('/api/snapshot')).json()).data;
+  expect(personalAfter.accounts).toEqual(originalPersonal.accounts);
+  expect(personalAfter.incomes).toEqual(originalPersonal.incomes);
+  expect(personalAfter.expenses).toEqual(originalPersonal.expenses);
+  expect(
+    personalAfter.personalEntries.find((e: { reference: string }) => e.reference === liability)
+      .settled,
+  ).toBe(10000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: 'artifacts/private-liabilities-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await api.get('/api/snapshot')).status()).toBe(401);

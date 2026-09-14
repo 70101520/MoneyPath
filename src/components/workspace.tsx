@@ -45,6 +45,7 @@ import {
 import { RecordForm } from './record-form';
 import { Planning } from './planning';
 import { Decisions } from './decisions';
+import { PersonalBalances } from './personal';
 import { planningNotifications } from '@/lib/decision';
 const navigation = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -64,6 +65,8 @@ const navigation = [
   { id: 'debt-plan', label: 'Get out of debt', icon: TrendingDown },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'reports', label: 'Reports', icon: ReceiptText },
+  { id: 'receivables', label: 'Money to receive', icon: ArrowDownLeft },
+  { id: 'payables', label: 'Money I owe', icon: ArrowLeftRight },
 ];
 const colors = ['#337569', '#91ada1', '#d7b787', '#8295aa', '#b5bdc5', '#e0d5c1'];
 export function Workspace({
@@ -117,13 +120,15 @@ export function Workspace({
     setTimeout(() => setToast(''), 5000);
   };
   const payment = (id: string, kind: string, amount: number) =>
-    open('payment', {
-      type: kind === 'Credit card' ? 'STATEMENT' : 'COMMITMENT',
-      ...(kind === 'Credit card'
-        ? { cardId: id.split(':')[0] }
-        : { commitmentId: id.split(':')[0] }),
-      amount,
-    });
+    kind === 'Private liability'
+      ? go('payables')
+      : open('payment', {
+          type: kind === 'Credit card' ? 'STATEMENT' : 'COMMITMENT',
+          ...(kind === 'Credit card'
+            ? { cardId: id.split(':')[0] }
+            : { commitmentId: id.split(':')[0] }),
+          amount,
+        });
   return (
     <div className="app-shell">
       <aside className={'sidebar ' + (mobile ? 'visible' : '')}>
@@ -315,14 +320,21 @@ export function Workspace({
               </button>
             </div>
           )}
-          {[
-            'salary-plan',
-            'priority',
-            'purchase',
-            'debt-plan',
-            'notifications',
-            'reports',
-          ].includes(active) ? (
+          {active === 'receivables' || active === 'payables' ? (
+            <PersonalBalances
+              key={active}
+              data={data}
+              direction={active === 'receivables' ? 'RECEIVABLE' : 'PAYABLE'}
+              demo={demo}
+            />
+          ) : [
+              'salary-plan',
+              'priority',
+              'purchase',
+              'debt-plan',
+              'notifications',
+              'reports',
+            ].includes(active) ? (
             <Decisions
               key={active}
               data={data}
@@ -465,6 +477,23 @@ export function Workspace({
                   note="Held outside your spending accounts"
                   tone="green"
                 />
+                {!!data.personalEntries?.length && (
+                  <>
+                    <Stat
+                      label="Private liabilities"
+                      value={INR(s.privateDebt)}
+                      icon={<ArrowLeftRight size={18} />}
+                      note="Separate from card debt"
+                      tone="amber"
+                    />
+                    <Stat
+                      label="Money expected back"
+                      value={INR(s.expectedReceivables)}
+                      icon={<ArrowDownLeft size={18} />}
+                      note="Excluded from available cash"
+                    />
+                  </>
+                )}
               </div>
               <div className="detail-grid">
                 <section className="panel payments-panel">
@@ -882,6 +911,8 @@ export function Workspace({
   );
 }
 const descriptions: Record<string, string> = {
+  receivables: 'Track expected receipts without counting them as spendable cash.',
+  payables: 'Track private liabilities, repayment dates and cash reservations.',
   'salary-plan': 'Give your received salary a clear purpose.',
   priority: 'Protect essentials while deciding what to pay next.',
   purchase: 'Check the effect before you spend.',
@@ -1221,6 +1252,14 @@ function FinancialCalendar({ data }: { data: Data }) {
         ),
       );
   });
+  for (const entry of data.personalEntries ?? [])
+    if (entry.dueDate && entry.amount > entry.settled)
+      events.push({
+        date: entry.dueDate.slice(0, 10),
+        name: `${entry.reference}${entry.direction === 'RECEIVABLE' ? ' · expected receipt' : ' · repayment'}`,
+        amount: entry.amount - entry.settled,
+        kind: entry.direction === 'RECEIVABLE' ? 'income' : 'bill',
+      });
   if (data.settings.salaryDay) {
     const d = new Date(first);
     d.setUTCDate(Math.min(data.settings.salaryDay, end.getUTCDate()));
@@ -1254,7 +1293,7 @@ function FinancialCalendar({ data }: { data: Data }) {
       }
     }
     amount += s.obligations
-      .filter((o) => o.kind === 'Credit card' && o.days <= n)
+      .filter((o) => ['Credit card', 'Private liability'].includes(o.kind) && o.days <= n)
       .reduce((a, o) => a + o.amount, 0);
     amount += data.cards
       .flatMap((c) => c.emis)

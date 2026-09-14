@@ -30,12 +30,14 @@ export function paymentPriority(data: Data, asOf = today()) {
     .filter((o) => o.amount > 0)
     .map((o) => {
       const card = data.cards.find((c) => c.id === o.id.split(':')[0]);
+      const personal = (data.personalEntries ?? []).find((p) => p.id === o.id);
       const commitment = data.commitments.find((c) => c.id === o.id.split(':')[0]);
       const lateFee = card?.lateFee ?? commitment?.lateFee ?? null;
       const insurance = ['LIC', 'Term Insurance'].includes(o.kind);
       const score =
         (o.days < 0 ? 1000 : o.days <= 3 ? 500 : o.days <= 7 ? 300 : 0) +
         (insurance ? 90 : 0) +
+        (personal?.priority === 'HIGH' ? 90 : personal?.priority === 'NORMAL' ? 30 : 0) +
         (o.essential ? 60 : 0) +
         (card ? 50 + card.interestBps / 100 : 0) +
         Math.min(100, (lateFee ?? 0) / 10000);
@@ -466,14 +468,27 @@ export function historyReports(data: Data, endMonth = today().slice(0, 7)) {
       .filter((r) => r.date.slice(0, 7) === month && r.accountId !== null)
       .reduce((n, r) => n + r.amount, 0);
     // Commitment expenses already exist in Expense; only card repayments are additional cash outflows.
-    const cashOut = cashExpenses + spending.debtPayments;
+    const settlements = (data.settlements ?? []).filter((p) => p.date.slice(0, 7) === month);
+    const personalIn = settlements
+      .filter((p) =>
+        data.personalEntries?.some((e) => e.id === p.entryId && e.direction === 'RECEIVABLE'),
+      )
+      .reduce((n, p) => n + p.amount, 0);
+    const personalOut = settlements
+      .filter((p) =>
+        data.personalEntries?.some((e) => e.id === p.entryId && e.direction === 'PAYABLE'),
+      )
+      .reduce((n, p) => n + p.amount, 0);
+    const cashOut = cashExpenses + spending.debtPayments + personalOut;
     const snapshots = (data.risks ?? []).filter((r) => localDay(r.createdAt).slice(0, 7) === month);
     const latest = snapshots[0];
     return {
       ...spending,
-      cashIn: received,
+      cashIn: received + personalIn,
       cashOut,
-      netCashFlow: received - cashOut,
+      netCashFlow: received + personalIn - cashOut,
+      personalIn,
+      personalOut,
       netDebtReduction: spending.debtPayments - spending.cardSpending,
       score: latest?.score ?? null,
       version: latest?.version ?? null,

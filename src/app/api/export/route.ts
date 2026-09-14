@@ -30,6 +30,19 @@ export async function GET() {
       'Bank transfer',
     ]),
   );
+  (data.settlements ?? []).forEach((p) => {
+    const entry = data.personalEntries?.find((e) => e.id === p.entryId);
+    rows.push([
+      entry?.direction === 'RECEIVABLE'
+        ? 'Receivable settlement (not income)'
+        : 'Private debt repayment (not expense)',
+      dateLabel(p.date),
+      entry?.reference,
+      p.amount / 100,
+      p.notes,
+      'Account transfer',
+    ]);
+  });
   return new Response('\uFEFF' + rows.map((r) => r.map(quote).join(',')).join('\r\n'), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
