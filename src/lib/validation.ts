@@ -20,6 +20,12 @@ const date = z
 const postedDate = date.refine((v) => v <= today(), 'Posted transactions cannot be future dated');
 export const commandSchema = z.discriminatedUnion('kind', [
   z.object({
+    kind: z.literal('budget'),
+    month: z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/),
+    category: text.transform((v) => v.replace(/\s+/g, ' ').toLowerCase()),
+    amount: money,
+  }),
+  z.object({
     kind: z.literal('account'),
     name: text,
     type: z.enum(['BANK', 'CASH', 'SAVINGS', 'INVESTMENT']),

@@ -1,4 +1,79 @@
 @import 'tailwindcss';
+.planning {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.planning-month,
+.planning-budget-form label {
+  display: grid;
+  gap: 8px;
+}
+.planning input {
+  padding: 10px;
+  border: 1px solid #cad6cf;
+  border-radius: 8px;
+  background: white;
+  min-width: 0;
+  width: 100%;
+}
+.planning-month {
+  max-width: 230px;
+}
+.planning-note,
+.planning p {
+  line-height: 1.65;
+}
+.planning-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+.planning-summary {
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+.planning-summary strong {
+  font-size: 25px;
+}
+.planning-budget-form,
+.planning-insights {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.planning-budget-form label {
+  max-width: 440px;
+}
+.planning-budget-form button {
+  justify-self: start;
+}
+.planning-table-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  padding: 16px;
+}
+.planning-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.planning-table caption {
+  text-align: left;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 10px;
+}
+.planning-table th,
+.planning-table td {
+  padding: 14px 10px;
+  border-bottom: 1px solid #e8eceb;
+  white-space: nowrap;
+}
+.category-name {
+  text-transform: capitalize;
+}
 @theme {
   --font-sans: 'Segoe UI', Arial, sans-serif;
 }

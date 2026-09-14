@@ -43,6 +43,7 @@ import {
   type Data,
 } from '@/lib/finance';
 import { RecordForm } from './record-form';
+import { Planning } from './planning';
 const navigation = [
   { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'income', label: 'Income', icon: ArrowDownLeft },
@@ -53,6 +54,8 @@ const navigation = [
   { id: 'emi', label: 'Card EMIs', icon: Layers3 },
   { id: 'payments', label: 'Payments', icon: ArrowLeftRight },
   { id: 'calendar', label: 'Financial calendar', icon: CalendarDays },
+  { id: 'budgets', label: 'Budgets', icon: Wallet },
+  { id: 'spending', label: 'Spending analysis', icon: ReceiptText },
 ];
 const colors = ['#337569', '#91ada1', '#d7b787', '#8295aa', '#b5bdc5', '#e0d5c1'];
 export function Workspace({
@@ -304,7 +307,9 @@ export function Workspace({
               </button>
             </div>
           )}
-          {active === 'dashboard' ? (
+          {active === 'budgets' || active === 'spending' ? (
+            <Planning data={data} section={active} demo={demo} />
+          ) : active === 'dashboard' ? (
             <>
               <div className="overview-grid">
                 <section className="safe-card">
@@ -853,6 +858,8 @@ export function Workspace({
   );
 }
 const descriptions: Record<string, string> = {
+  budgets: 'Set monthly limits and see which categories need attention.',
+  spending: 'Understand recorded purchases, repayments and month-to-month changes.',
   income: 'Track what has arrived and what you are expecting. Only received money adds to cash.',
   accounts: 'A clear separation between everyday cash and money set aside.',
   commitments: 'Keep every recurring payment covered, even the ones that only come once a year.',

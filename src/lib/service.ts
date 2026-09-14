@@ -5,19 +5,21 @@ import { encrypt, decrypt, tokenHash } from './security';
 import type { Command } from './validation';
 type Tx = Prisma.TransactionClient;
 export async function readData(userId: string, tx: Tx = db): Promise<Data> {
-  const [user, accounts, incomes, commitments, cards, expenses, payments] = await Promise.all([
-    tx.user.findUniqueOrThrow({ where: { id: userId } }),
-    tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
-    tx.income.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-    tx.commitment.findMany({ where: { userId }, orderBy: { dueDate: 'asc' } }),
-    tx.card.findMany({
-      where: { userId },
-      include: { emis: true, statements: { orderBy: { statementDate: 'desc' }, take: 12 } },
-      orderBy: { bank: 'asc' },
-    }),
-    tx.expense.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-    tx.payment.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
-  ]);
+  const [user, accounts, incomes, commitments, cards, expenses, payments, budgets] =
+    await Promise.all([
+      tx.user.findUniqueOrThrow({ where: { id: userId } }),
+      tx.account.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+      tx.income.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+      tx.commitment.findMany({ where: { userId }, orderBy: { dueDate: 'asc' } }),
+      tx.card.findMany({
+        where: { userId },
+        include: { emis: true, statements: { orderBy: { statementDate: 'desc' }, take: 12 } },
+        orderBy: { bank: 'asc' },
+      }),
+      tx.expense.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+      tx.payment.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+      tx.budget.findMany({ where: { userId }, orderBy: [{ month: 'desc' }, { category: 'asc' }] }),
+    ]);
   const settings = {
     name: user.name,
     salaryDay: user.salaryDay,
@@ -30,6 +32,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
   return JSON.parse(
     JSON.stringify({
       settings,
+      budgets,
       accounts,
       commitments,
       incomes: incomes.map((i) => ({ ...i, notes: decrypt(i.notes) })),
@@ -62,6 +65,16 @@ export async function execute(userId: string, requestId: string, command: Comman
           let entityId = userId;
           const c = command;
           switch (c.kind) {
+            case 'budget': {
+              const category = c.category.trim().replace(/\s+/g, ' ').toLowerCase();
+              const row = await tx.budget.upsert({
+                where: { userId_month_category: { userId, month: c.month, category } },
+                create: { userId, month: c.month, category, amount: c.amount },
+                update: { amount: c.amount },
+              });
+              entityId = row.id;
+              break;
+            }
             case 'account': {
               const row = await tx.account.create({
                 data: {

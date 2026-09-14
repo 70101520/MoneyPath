@@ -215,6 +215,7 @@ export type PaymentData = {
   notes: string | null;
 };
 export type Data = {
+  budgets?: { id: string; month: string; category: string; amount: number }[];
   settings: Settings;
   accounts: AccountData[];
   cards: CardData[];

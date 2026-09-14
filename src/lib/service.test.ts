@@ -79,6 +79,44 @@ describe.skipIf(!enabled)('PostgreSQL transactional accounting', () => {
     await db.user.delete({ where: { id: userId } });
     await db.$disconnect();
   });
+  it('persists budgets idempotently without changing balances and scopes updates to the owner', async () => {
+    const before = await readData(userId);
+    const key = randomUUID();
+    const command: Command = {
+      kind: 'budget',
+      month: date.slice(0, 7),
+      category: ' Groceries ',
+      amount: 300000,
+    };
+    const first = await run(command, key);
+    expect((await run(command, key))?.duplicate).toBe(true);
+    const updated = await run({ ...command, category: 'groceries', amount: 400000 });
+    expect(updated?.id).toBe(first?.id);
+    const after = await readData(userId);
+    expect(after.budgets).toHaveLength(1);
+    expect(after.budgets![0].amount).toBe(400000);
+    expect(after.accounts).toEqual(before.accounts);
+    expect(after.expenses).toEqual(before.expenses);
+    expect(after.cards).toEqual(before.cards);
+    const outsider = await db.user.create({
+      data: {
+        email: randomUUID() + '@test.invalid',
+        ownerKey: randomUUID(),
+        name: 'Other',
+        password: 'unused',
+      },
+    });
+    try {
+      await execute(outsider.id, randomUUID(), { ...command, amount: 100 });
+      expect((await readData(outsider.id)).budgets![0].amount).toBe(100);
+      expect((await readData(userId)).budgets![0].amount).toBe(400000);
+      await expect(execute(outsider.id, key, command)).rejects.toThrow('Request conflict');
+    } finally {
+      await db.riskSnapshot.deleteMany({ where: { userId: outsider.id } });
+      await db.audit.deleteMany({ where: { userId: outsider.id } });
+      await db.user.delete({ where: { id: outsider.id } });
+    }
+  });
   it('purchase then repayment changes debt and cash but records one expense', async () => {
     await run({
       kind: 'expense',

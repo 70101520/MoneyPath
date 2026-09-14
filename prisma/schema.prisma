@@ -27,6 +27,17 @@ model User {
   payments Payment[]
   audits Audit[]
   risks RiskSnapshot[]
+  budgets Budget[]
+}
+model Budget {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month String
+  category String
+  amount Int
+  updatedAt DateTime @updatedAt
+  @@unique([userId, month, category])
 }
 model Session {
   id String @id

@@ -17,6 +17,7 @@ erDiagram
   User ||--o{ Payment : records
   User ||--o{ Audit : audits
   User ||--o{ RiskSnapshot : evaluates
+  User ||--o{ Budget : plans
   Account ||--o{ Income : credits
   Account ||--o{ Expense : debits
   Account ||--o{ Payment : funds
@@ -58,6 +59,8 @@ Pages: dashboard, income, accounts, commitments, expenses, credit cards, EMI, pa
 Sensitive free text and optional card last four are encrypted with AES-256-GCM using an external environment key. No full card numbers, CVV, PIN, OTP or bank credentials have fields. Audit stores action/entity identifiers, not plaintext private notes.
 
 ## Delivery phases
+
+Current status: Phase 1 complete; Phase 2 budgets and spending analysis implemented. See [PHASE2.md](PHASE2.md) for delivered and remaining increments. Budget limits are monthly tracking targets, not additional cash reservations; missing budgets remain unknown. Budget writes use the existing authenticated, audited, idempotent records API.
 
 1. **Foundation and Phase 1:** architecture, schema, deterministic calculations/tests, local auth, accounts/income/commitments/expenses/cards/EMI/payments, dashboard, calendar, basic risk, Docker, operational README. Validate transaction accounting and responsive UI.
 2. **Planning:** budgets, spending analysis, salary allocation acceptance, payment priority, purchase simulation, debt payoff forecasts, notification rules, richer history reports.

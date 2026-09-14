@@ -1,8 +1,8 @@
 # MoneyPath
 
-A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 only: local authentication, dashboard, income, accounts, recurring commitments, expenses, credit cards, EMI, payments, calendar, explainable basic risk, and safe-to-spend cash.
+A private personal-finance control centre built with Next.js 16.3.5, React 19, TypeScript, Tailwind CSS 4, PostgreSQL, Prisma 7 and Recharts. Phase 1 is complete: local authentication, dashboard, income, accounts, recurring commitments, expenses, credit cards, EMI, payments, calendar, explainable basic risk, and safe-to-spend cash. Phase 2 has started with monthly budgets and spending analysis; see [progress and remaining scope](docs/PHASE2.md).
 
-Read [the architecture, ER diagram, calculation rules and phased roadmap](docs/ARCHITECTURE.md) before extending the application. The executable database schema is [prisma/schema.prisma](prisma/schema.prisma). Later planning modules are deliberately not implemented.
+Read [the architecture, ER diagram, calculation rules and phased roadmap](docs/ARCHITECTURE.md) before extending the application. The executable database schema is [prisma/schema.prisma](prisma/schema.prisma).
 
 ## Start with Docker
 

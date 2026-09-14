@@ -16,6 +16,8 @@ test('sample dashboard and all Phase 1 navigation render without client errors',
     'Card EMIs',
     'Payments',
     'Financial calendar',
+    'Budgets',
+    'Spending analysis',
   ]) {
     await page.getByRole('button', { name: section, exact: true }).click();
     await expect(page.locator('main h1')).toBeVisible();
@@ -76,6 +78,22 @@ test('owner authentication, persisted entry, and card repayment work end to end'
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  await page.getByRole('button', { name: 'Budgets', exact: true }).click();
+  await page.getByLabel('Budget category', { exact: true }).fill('Browser budget');
+  await page.getByLabel('Monthly budget (INR)', { exact: true }).fill('1234.56');
+  await page.getByRole('button', { name: 'Save budget', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Budget saved.');
+  await page.reload();
+  const budgetRow = page.getByRole('row').filter({ hasText: 'browser budget' });
+  await expect(budgetRow).toContainText('1,234.56');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: 'artifacts/budgets-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await page.getByRole('button', { name: 'Bank accounts', exact: true }).click();
   await page.getByRole('button', { name: 'Add account', exact: true }).click();
   const suffix = randomUUID().slice(0, 8);

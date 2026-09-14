@@ -6,6 +6,10 @@ export function sampleData(asOf = today()): Data {
     return d.toISOString().slice(0, 10);
   };
   return {
+    budgets: [
+      { id: 'budget-groceries', month: asOf.slice(0, 7), category: 'groceries', amount: 400000 },
+      { id: 'budget-shopping', month: asOf.slice(0, 7), category: 'shopping', amount: 250000 },
+    ],
     settings: {
       name: 'Balaji',
       salaryDay: 10,
