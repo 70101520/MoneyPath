@@ -67,7 +67,7 @@ For a POSIX shell: `SEED_SAMPLE_DATA=yes npm run db:seed`. Seeding refuses a non
 - Enter opening account balances **before** any new transactions you plan to record. Card opening balances already include their historical purchases and payments. Do not enter that history again.
 - Amounts are integer paise in storage and calculations. Forms accept INR with up to two decimals. Each input is capped at ₹1 crore; aggregate writes also remain bounded by PostgreSQL `Int` storage.
 - Safe to spend excludes non-spendable accounts, expected income, credit limits and future receivables. Emergency and goal earmarks are deducted only from spendable accounts. Do not reserve the same money both in an excluded account and an earmark.
-- Essential living is the **remaining** amount needed until salary. Review this setting after spending; automatic category-budget allocation is Phase 2.
+- Essential living is the **remaining** amount needed until salary. Review it after spending or when accepting a salary plan. Category budgets are tracking limits and do not reserve the same cash again.
 - Long-cycle commitments reserve funded cash plus monthly catch-up. When a bill is due before the next salary, its full remaining payment replaces that accrual. Missed recurrences remain payable. Enter the first **unpaid** due date.
 - A card purchase is an expense and increases posted card debt. A card payment lowers cash and debt and creates **no additional expense**. Statement and unbilled payment allocations are validated separately.
 - Posted card outstanding excludes unbilled EMI principal. EMI entry normally records an existing unbilled schedule. Select **New financed purchase** to record a new purchase expense and unbilled EMI debt together (do not also enter a separate expense). Posting an installment transfers principal to posted debt and records only interest as a new expense. Use actual principal/interest from the issuer. Update the next installment components afterward; otherwise the dashboard says Information Required. Early EMI closure and conversion of an existing purchase into EMI are not supported in Phase 1.
@@ -76,7 +76,7 @@ For a POSIX shell: `SEED_SAMPLE_DATA=yes npm run db:seed`. Seeding refuses a non
 - Monthly debt reduction = card payments minus recorded new card purchases and interest. Opening snapshots are not new transactions in that metric.
 - Posted records are immutable in Phase 1. Settings, commitments and EMI schedules can be edited. Corrections/reversals of posted transactions and opening-balance reconciliation do not yet have a UI; check entries before saving.
 
-Transactions use serializable isolation and unique idempotency keys. Every successful financial command stores an audit entry and versioned risk rules. Missing required inputs produce **Information Required**, and a cash shortfall is displayed separately from zero available money. The basic risk engine covers recorded cards and commitments; it does not claim to assess loans, future receivables, budgets or longer-term trends not yet tracked in Phase 1.
+Transactions use serializable isolation and unique idempotency keys. Every successful financial command stores an audit entry and versioned risk rules. Missing required inputs produce **Information Required**, and a cash shortfall is displayed separately from zero available money. The current risk engine considers recorded cards, commitments, budgets and available history. It does not assess personal loans, future receivables or other untracked Phase 3 data.
 
 ## Tests
 

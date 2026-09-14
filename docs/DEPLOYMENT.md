@@ -1,8 +1,12 @@
 # Testing VM deployment
 
-MoneyPath Phase 1 is available at **http://192.168.80.128:3000** on the VMware guest. Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
+MoneyPath Phases 1 and 2 are available at **http://192.168.80.128:3000** on the VMware guest. Source is tracked on [GitHub](https://github.com/70101520/MoneyPath) on `main`.
 
-The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Initial Phase 1 revision: `c47eb9b16fa4d09fed86b75318cbe3f2e1c03043`. Phase 2 budgets and spending analysis update: `6fbd595`. Subsequent documentation commits do not change the tested image.
+The deployment was validated on 14 September 2026 using Ubuntu 24.04.4 LTS, Docker Engine 29.8.0 and Compose 5.5.1. Current tested application revision: `79ddbdb` (full Phase 2). Earlier releases: `c47eb9b` (Phase 1) and `6fbd595` (budgets increment). Subsequent documentation commits do not change the tested image.
+
+The Phase 2 Docker build and all 51 finance/security/database tests passed on the VM. Six migrations are applied. Before migration, the app was briefly stopped, its database and matching environment were backed up under `/opt/moneypath/backups/before-phase2-complete-20260914T125902Z.*`, and row counts/digests were captured. All 14 pre-existing application tables matched after migration when excluding newly added nullable columns; posted records, settings and sessions were preserved. The old image is tagged `moneypath-app:before-phase2-complete`.
+
+Final LAN Chromium checks passed for all eight Phase 2 pages on desktop and mobile, including purchase simulation and opening a transaction form over HTTP. Authentication redirects and anonymous API rejection passed, with no client errors or page overflow. Existing owners keep their email/password; first-owner setup is only for an empty installation.
 
 ## First account
 
