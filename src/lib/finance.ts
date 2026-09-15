@@ -166,6 +166,8 @@ export type CardData = {
   interestBps: number;
   lateFee?: number | null;
   status: string;
+  detailsComplete?: boolean;
+  notes?: string | null;
   emis: EmiData[];
   statements?: {
     id: string;
@@ -207,6 +209,7 @@ export type IncomeData = {
   source: string;
   status: string;
   recurring: boolean;
+  balanceApplied?: boolean;
   notes: string | null;
   accountId: string | null;
 };
@@ -459,6 +462,8 @@ export function calculate(data: Data, asOf = today()) {
     totalLimit = 0;
   const issues: string[] = [];
   for (const c of data.cards) {
+    if (c.detailsComplete === false)
+      issues.push(`${c.name}: review card limit, statement, due date and interest rate`);
     const remaining = statementBalance(c.statementAmount, c.statementPaid);
     oldBill += remaining;
     totalLimit += c.creditLimit;

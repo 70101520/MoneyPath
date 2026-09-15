@@ -76,6 +76,21 @@ test('Ask MoneyPath stays available as a side chat while moving between pages', 
   ).toBe('page-arrive');
   await expect(trigger).toBeVisible();
 });
+test('core financial records expose review and edit forms', async ({ page }) => {
+  await page.goto('/demo');
+  await page.getByRole('button', { name: 'Bank accounts', exact: true }).click();
+  await page.locator('.records-panel').getByRole('button', { name: 'Edit' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Edit bank account' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close form' }).click();
+  await page.getByRole('button', { name: 'Income', exact: true }).click();
+  await page.locator('.records-panel').getByRole('button', { name: 'Edit' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Edit income' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close form' }).click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await page.getByRole('button', { name: 'Credit cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit card', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Edit credit card' })).toBeVisible();
+});
 test('protected routes redirect and cross-origin mutations fail', async ({ page, request }) => {
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/login$/);
@@ -134,7 +149,7 @@ test('owner authentication, persisted entry, and card repayment work end to end'
   const url = new URL(process.env.DATABASE_URL ?? 'http://invalid');
   if (url.port !== '55432' || url.pathname !== '/moneypath_test_utf8')
     throw new Error('Refusing non-test database');
-  const email = 'browser-owner@test.invalid';
+  const email = `browser-owner-${randomUUID()}@test.invalid`;
   await page.addInitScript(() => {
     Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true });
   });

@@ -263,6 +263,7 @@ model Income {
   source String
   recurring Boolean @default(false)
   status String
+  balanceApplied Boolean @default(true)
   notes String?
   salaryPlan SalaryPlan?
 }
@@ -303,6 +304,8 @@ model Card {
   interestBps Int
   lateFee Int?
   status String @default("ACTIVE")
+  detailsComplete Boolean @default(true)
+  notes String?
   expenses Expense[]
   payments Payment[]
   emis Emi[]

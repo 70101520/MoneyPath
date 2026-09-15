@@ -106,7 +106,7 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
       accounts,
       commitments,
       incomes: incomes.map((i) => ({ ...i, notes: decrypt(i.notes) })),
-      cards: cards.map((c) => ({ ...c, lastFour: decrypt(c.lastFour) })),
+      cards: cards.map((c) => ({ ...c, lastFour: decrypt(c.lastFour), notes: decrypt(c.notes) })),
       expenses: expenses.map((e) => ({ ...e, description: decrypt(e.description) })),
       payments: payments.map((p) => ({ ...p, notes: decrypt(p.notes) })),
     }),
@@ -487,6 +487,15 @@ export async function execute(
               entityId = row.id;
               break;
             }
+            case 'updateAccount': {
+              await account(c.id);
+              await tx.account.update({
+                where: { id: c.id },
+                data: { name: c.name, kind: c.type, balance: c.balance, spendable: c.spendable },
+              });
+              entityId = c.id;
+              break;
+            }
             case 'income': {
               if (c.status === 'RECEIVED') {
                 await account(c.accountId!);
@@ -526,6 +535,41 @@ export async function execute(
               entityId = c.id;
               break;
             }
+            case 'updateIncome': {
+              const prior = await tx.income.findFirstOrThrow({ where: { id: c.id, userId } });
+              if (prior.status === 'RECEIVED' && prior.accountId && prior.balanceApplied) {
+                const oldAccount = await account(prior.accountId);
+                if (oldAccount.balance < prior.amount)
+                  throw new Error(
+                    'Cannot correct income because the original credited funds are no longer available',
+                  );
+                await tx.account.update({
+                  where: { id: prior.accountId },
+                  data: { balance: { decrement: prior.amount } },
+                });
+              }
+              if (c.status === 'RECEIVED' && prior.balanceApplied) {
+                await account(c.accountId!);
+                await tx.account.update({
+                  where: { id: c.accountId! },
+                  data: { balance: { increment: c.amount } },
+                });
+              }
+              await tx.income.update({
+                where: { id: c.id },
+                data: {
+                  amount: c.amount,
+                  date: day(c.date),
+                  source: c.source,
+                  recurring: c.recurring,
+                  status: c.status,
+                  accountId: c.status === 'RECEIVED' ? c.accountId : null,
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = c.id;
+              break;
+            }
             case 'expense': {
               if (c.cardId) {
                 const target = await card(c.cardId);
@@ -543,12 +587,52 @@ export async function execute(
                   category: c.category,
                   method: c.method,
                   essentiality: c.essentiality,
-                  accountId: c.accountId,
-                  cardId: c.cardId,
+                  accountId: c.accountId ?? null,
+                  cardId: c.cardId ?? null,
                   description: encrypt(c.description),
                 },
               });
               entityId = row.id;
+              break;
+            }
+            case 'updateExpense': {
+              const prior = await tx.expense.findFirstOrThrow({ where: { id: c.id, userId } });
+              if (prior.accountId)
+                await tx.account.update({
+                  where: { id: prior.accountId },
+                  data: { balance: { increment: prior.amount } },
+                });
+              else if (prior.cardId) {
+                const oldCard = await card(prior.cardId);
+                if (oldCard.outstanding < prior.amount)
+                  throw new Error('Cannot correct expense after later card reconciliation');
+                await tx.card.update({
+                  where: { id: prior.cardId },
+                  data: { outstanding: { decrement: prior.amount }, availableLimit: null },
+                });
+              }
+              if (c.cardId) {
+                const newCard = await card(c.cardId);
+                if (newCard.status !== 'ACTIVE') throw new Error('Card is not active');
+                await tx.card.update({
+                  where: { id: c.cardId },
+                  data: { outstanding: { increment: c.amount }, availableLimit: null },
+                });
+              } else await debit(c.accountId!, c.amount);
+              await tx.expense.update({
+                where: { id: c.id },
+                data: {
+                  amount: c.amount,
+                  date: day(c.date),
+                  category: c.category,
+                  method: c.method,
+                  essentiality: c.essentiality,
+                  accountId: c.accountId ?? null,
+                  cardId: c.cardId ?? null,
+                  description: encrypt(c.description),
+                },
+              });
+              entityId = c.id;
               break;
             }
             case 'commitment': {
@@ -576,7 +660,11 @@ export async function execute(
                 where: { id: c.id },
                 data: {
                   name: c.name,
+                  category: c.category,
                   amount: c.amount,
+                  intervalMonths: c.intervalMonths,
+                  dueDate: day(c.dueDate),
+                  anchorDay: day(c.dueDate).getUTCDate(),
                   funded: c.funded,
                   essential: c.essential,
                   active: c.active,
@@ -586,18 +674,45 @@ export async function execute(
               break;
             }
             case 'card': {
-              const { kind, lastFour, ...fields } = c;
+              const { kind, lastFour, notes, ...fields } = c;
               void kind;
               const row = await tx.card.create({
                 data: {
                   ...fields,
                   userId,
                   lastFour: encrypt(lastFour),
+                  detailsComplete: c.detailsComplete ?? true,
+                  notes: encrypt(notes),
                   statementDate: day(c.statementDate),
                   dueDate: day(c.dueDate),
                 },
               });
               entityId = row.id;
+              break;
+            }
+            case 'updateCard': {
+              await card(c.id);
+              await tx.card.update({
+                where: { id: c.id },
+                data: {
+                  bank: c.bank,
+                  name: c.name,
+                  lastFour: encrypt(c.lastFour),
+                  creditLimit: c.creditLimit,
+                  availableLimit: c.availableLimit,
+                  outstanding: c.outstanding,
+                  statementAmount: c.statementAmount,
+                  statementPaid: c.statementPaid,
+                  statementDate: day(c.statementDate),
+                  dueDate: day(c.dueDate),
+                  minimumDue: c.minimumDue,
+                  interestBps: c.interestBps,
+                  status: c.status,
+                  detailsComplete: c.detailsComplete ?? true,
+                  notes: encrypt(c.notes),
+                },
+              });
+              entityId = c.id;
               break;
             }
             case 'statement': {

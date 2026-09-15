@@ -78,6 +78,7 @@ async function checkEncryptedFields(client) {
     ['PushSubscription', 'payload'],
     ['ChatMessage', 'content'],
     ['CashAdvance', 'notes'],
+    ['Card', 'notes'],
     ['Audit', 'interpretation'],
   ]) {
     const rows = await client.query(

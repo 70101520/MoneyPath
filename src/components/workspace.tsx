@@ -826,6 +826,27 @@ export function Workspace({
                             </div>
                           </div>
                           <div className="card-body">
+                            <button
+                              type="button"
+                              className="text-button card-edit-button"
+                              onClick={() =>
+                                open('updateCard', c as unknown as Record<string, unknown>)
+                              }
+                            >
+                              Edit card
+                            </button>
+                            {c.detailsComplete === false && (
+                              <div className="information compact-information">
+                                <CircleHelp size={18} />
+                                <div>
+                                  <strong>Needs review</strong>
+                                  <p>
+                                    {c.notes ??
+                                      'Complete statement, due date and interest details.'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                             <dl className="breakdown-list">
                               <div>
                                 <dt>Old bill to pay</dt>
@@ -1084,7 +1105,7 @@ function Records({
   let headers: string[] = [];
   let rows: Row[] = [];
   if (section === 'accounts') {
-    headers = ['Account', 'Type', 'Balance', 'Availability'];
+    headers = ['Account', 'Type', 'Balance', 'Availability', ''];
     rows = data.accounts.map((a) => ({
       id: a.id,
       search: a.name,
@@ -1095,11 +1116,18 @@ function Records({
         <span key="b" className={'badge ' + (a.spendable ? 'green' : 'neutral')}>
           {a.spendable ? 'Spendable cash' : 'Set aside'}
         </span>,
+        <button
+          key="e"
+          className="text-button"
+          onClick={() => open('updateAccount', { ...a, type: a.kind })}
+        >
+          Edit
+        </button>,
       ],
     }));
   }
   if (section === 'income') {
-    headers = ['Source', 'Date', 'Amount', 'Status', ''];
+    headers = ['Source', 'Date', 'Amount', 'Status', '', ''];
     rows = data.incomes.map((i) => ({
       id: i.id,
       search: i.source + ' ' + i.notes,
@@ -1125,11 +1153,18 @@ function Records({
             Mark received →
           </button>
         ) : null,
+        <button
+          key="edit"
+          className="text-button"
+          onClick={() => open('updateIncome', { ...i, accountId: i.accountId ?? undefined })}
+        >
+          Edit
+        </button>,
       ],
     }));
   }
   if (section === 'expenses') {
-    headers = ['Description', 'Date', 'Category', 'Amount', 'Paid with', 'Essentiality'];
+    headers = ['Description', 'Date', 'Category', 'Amount', 'Paid with', 'Essentiality', ''];
     rows = data.expenses.map((e) => ({
       id: e.id,
       search: e.category + ' ' + e.description,
@@ -1142,6 +1177,19 @@ function Records({
         <span key="s" className={'badge ' + (e.essentiality === 'WANT' ? 'amber' : 'neutral')}>
           {e.essentiality}
         </span>,
+        <button
+          key="a"
+          className="text-button"
+          onClick={() =>
+            open('updateExpense', {
+              ...e,
+              accountId: e.accountId ?? undefined,
+              cardId: e.cardId ?? undefined,
+            })
+          }
+        >
+          Edit
+        </button>,
       ],
     }));
   }

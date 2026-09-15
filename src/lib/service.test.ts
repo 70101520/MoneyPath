@@ -473,4 +473,65 @@ describe.skipIf(!enabled)('PostgreSQL transactional accounting', () => {
     expect(await db.cardStatement.count({ where: { cardId: c } })).toBe(1);
     expect(await db.expense.count({ where: { userId } })).toBe(expenseCount);
   });
+  it('edits imported account, income and expense records with balanced corrections', async () => {
+    const account = (await run({
+      kind: 'account',
+      name: 'Editable import',
+      type: 'BANK',
+      balance: 100000,
+      spendable: true,
+    }))!.id;
+    await run({
+      kind: 'updateAccount',
+      id: account,
+      name: 'Editable import',
+      type: 'BANK',
+      balance: 120000,
+      spendable: true,
+    });
+    const income = (await run({
+      kind: 'income',
+      amount: 10000,
+      date,
+      source: 'Salary',
+      recurring: true,
+      status: 'RECEIVED',
+      accountId: account,
+    }))!.id;
+    await run({
+      kind: 'updateIncome',
+      id: income,
+      amount: 15000,
+      date,
+      source: 'Salary',
+      recurring: true,
+      status: 'RECEIVED',
+      accountId: account,
+    });
+    const expense = (await run({
+      kind: 'expense',
+      amount: 2000,
+      date,
+      category: 'Fuel',
+      method: 'UPI',
+      essentiality: 'MUST HAVE',
+      accountId: account,
+    }))!.id;
+    const cardBefore = (await db.card.findUniqueOrThrow({ where: { id: cardId } })).outstanding;
+    await run({
+      kind: 'updateExpense',
+      id: expense,
+      amount: 3000,
+      date,
+      category: 'Fuel',
+      method: 'Credit Card',
+      essentiality: 'MUST HAVE',
+      cardId,
+    });
+    expect((await db.account.findUniqueOrThrow({ where: { id: account } })).balance).toBe(135000);
+    expect((await db.card.findUniqueOrThrow({ where: { id: cardId } })).outstanding).toBe(
+      cardBefore + 3000,
+    );
+    expect((await db.expense.findUniqueOrThrow({ where: { id: expense } })).accountId).toBeNull();
+  });
 });

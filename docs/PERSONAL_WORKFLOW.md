@@ -21,3 +21,7 @@ Salary amount, salary day, accounts, card balances, commitments, budgets, invest
 Finance assistant chat supports common Hinglish/English questions and transaction phrases. It can prepare received salary, ordinary account expenses, new friend borrowing and credit-card cash advances. It always shows the interpreted amount and account/card before a separate confirmation saves the record. Purchase and shortfall questions are read-only. Chat history and any private transaction notes are encrypted in the database.
 
 Credit-card cash advances increase the selected account and card debt once; they are not income. Because issuer fees and interest are unknown at withdrawal time, MoneyPath warns clearly and requires those charges to be recorded separately when known.
+
+## Workbook migration
+
+Existing records from a reviewed personal workbook may be loaded into the testing installation with the private import workflow described in [WORKBOOK_IMPORT.md](WORKBOOK_IMPORT.md). Every uncertain card remains marked for review, and imported opening history does not silently change the workbook's current bank balances.

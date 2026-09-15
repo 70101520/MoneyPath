@@ -32,11 +32,16 @@ export function RecordForm({
     [error, setError] = useState('');
   const requestId = useRef(newRequestId());
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const close = () => {
+    if (dialogRef.current?.open) dialogRef.current.close();
+    onClose();
+  };
   useEffect(() => {
     dialogRef.current?.showModal();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      if (dialogRef.current?.open) dialogRef.current.close();
       document.body.style.overflow = overflow;
     };
   }, []);
@@ -160,7 +165,37 @@ export function RecordForm({
     ],
     updateCommitment: [
       { name: 'name', label: 'Commitment name' },
+      sel(
+        'category',
+        'Category',
+        opt([
+          'Family Support',
+          'LIC',
+          'Term Insurance',
+          'Tuition',
+          'SIP',
+          'Gold Saving Plan',
+          'Mobile Recharge',
+          'Household',
+          'Subscription',
+          'Other',
+        ]),
+      ),
       m('amount', 'Payment amount'),
+      sel('intervalMonths', 'Frequency', [
+        { value: '1', label: 'Monthly' },
+        { value: '3', label: 'Quarterly' },
+        { value: '6', label: 'Half-yearly' },
+        { value: '12', label: 'Yearly' },
+        { value: 'custom', label: 'Custom interval' },
+      ]),
+      {
+        name: 'customInterval',
+        label: 'Custom interval (months)',
+        type: 'number',
+        required: false,
+      },
+      d('dueDate', 'Next unpaid due date'),
       m('funded', 'Already reserved'),
       { name: 'essential', label: 'Essential commitment', type: 'checkbox' },
       { name: 'active', label: 'Active recurring commitment', type: 'checkbox' },
@@ -191,6 +226,13 @@ export function RecordForm({
         hint: '4200 = 42% per year.',
       },
       sel('status', 'Card status', opt(['ACTIVE', 'FROZEN', 'CLOSED'])),
+      {
+        name: 'detailsComplete',
+        label: 'All statement, due date and interest details verified',
+        type: 'checkbox',
+        default: true,
+      },
+      { name: 'notes', label: 'Review notes', required: false },
     ],
     statement: [
       m('statementAmount', 'New statement amount'),
@@ -266,14 +308,22 @@ export function RecordForm({
       ),
     ],
   };
+  fields.updateAccount = fields.account;
+  fields.updateIncome = fields.income;
+  fields.updateExpense = fields.expense;
+  fields.updateCard = fields.card;
   const titles: Record<string, string> = {
     account: 'Add bank account',
+    updateAccount: 'Edit bank account',
     income: 'Add income',
+    updateIncome: 'Edit income',
     receiveIncome: 'Receive expected income',
     expense: 'Add an expense',
+    updateExpense: 'Edit expense',
     commitment: 'Add commitment',
     updateCommitment: 'Edit commitment',
     card: 'Add credit card',
+    updateCard: 'Edit credit card',
     statement: 'Enter next statement',
     emi: 'Add card EMI',
     postEmi: 'Post EMI installment',
@@ -332,16 +382,24 @@ export function RecordForm({
     <div
       className="modal-backdrop"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onClose();
+        if (e.target === e.currentTarget && !busy) close();
       }}
     >
-      <dialog ref={dialogRef} className="modal" aria-labelledby="form-title" onCancel={onClose}>
+      <dialog
+        ref={dialogRef}
+        className="modal"
+        aria-labelledby="form-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          close();
+        }}
+      >
         <header>
           <div>
             <span className="eyebrow">MONEYPATH · {demo ? 'SAMPLE PREVIEW' : 'YOUR RECORDS'}</span>
             <h2 id="form-title">{titles[kind]}</h2>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close form">
+          <button className="icon-button" onClick={close} aria-label="Close form">
             <X />
           </button>
         </header>

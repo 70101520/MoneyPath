@@ -177,6 +177,14 @@ export const commandSchema = z.discriminatedUnion('kind', [
     balance: money,
     spendable: z.boolean(),
   }),
+  z.object({
+    kind: z.literal('updateAccount'),
+    id,
+    name: text,
+    type: z.enum(['BANK', 'CASH', 'SAVINGS', 'INVESTMENT']),
+    balance: money,
+    spendable: z.boolean(),
+  }),
   z
     .object({
       kind: z.literal('income'),
@@ -195,7 +203,40 @@ export const commandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('receiveIncome'), id, accountId: id, date: postedDate }),
   z
     .object({
+      kind: z.literal('updateIncome'),
+      id,
+      amount: positive,
+      date,
+      source: z.enum(['Salary', 'Bonus', 'Side Income', 'Other Income']),
+      recurring: z.boolean(),
+      status: z.enum(['EXPECTED', 'RECEIVED']),
+      accountId: id.optional(),
+      notes,
+    })
+    .refine(
+      (v) => v.status !== 'RECEIVED' || (v.accountId && v.date <= today()),
+      'Received income needs an account and a non-future date',
+    ),
+  z
+    .object({
       kind: z.literal('expense'),
+      amount: positive,
+      date: postedDate,
+      category: text,
+      method: z.enum(['UPI', 'Cash', 'Debit Card', 'Credit Card', 'Bank Transfer']),
+      essentiality: z.enum(['MUST HAVE', 'IMPORTANT/FLEXIBLE', 'WANT']),
+      accountId: id.optional(),
+      cardId: id.optional(),
+      description: notes,
+    })
+    .refine(
+      (v) => (v.method === 'Credit Card' ? !!v.cardId && !v.accountId : !!v.accountId && !v.cardId),
+      'Choose exactly one funding account or card',
+    ),
+  z
+    .object({
+      kind: z.literal('updateExpense'),
+      id,
       amount: positive,
       date: postedDate,
       category: text,
@@ -236,7 +277,21 @@ export const commandSchema = z.discriminatedUnion('kind', [
     kind: z.literal('updateCommitment'),
     id,
     name: text,
+    category: z.enum([
+      'Family Support',
+      'LIC',
+      'Term Insurance',
+      'Tuition',
+      'SIP',
+      'Gold Saving Plan',
+      'Mobile Recharge',
+      'Household',
+      'Subscription',
+      'Other',
+    ]),
     amount: positive,
+    intervalMonths: z.number().int().min(1).max(120),
+    dueDate: date,
     funded: money,
     essential: z.boolean(),
     active: z.boolean(),
@@ -260,6 +315,40 @@ export const commandSchema = z.discriminatedUnion('kind', [
       minimumDue: money,
       interestBps: z.number().int().min(0).max(10000),
       status: z.enum(['ACTIVE', 'FROZEN', 'CLOSED']),
+      detailsComplete: z.boolean().optional(),
+      notes,
+    })
+    .refine(
+      (v) =>
+        v.statementPaid <= v.statementAmount &&
+        v.outstanding >= v.statementAmount - v.statementPaid &&
+        v.minimumDue <= v.statementAmount &&
+        v.dueDate >= v.statementDate &&
+        (v.availableLimit === null || v.availableLimit <= v.creditLimit),
+      'Reconcile statement, outstanding, limits and dates',
+    ),
+  z
+    .object({
+      kind: z.literal('updateCard'),
+      id,
+      bank: text,
+      name: text,
+      lastFour: z
+        .string()
+        .regex(/^\d{4}$/)
+        .optional(),
+      creditLimit: positive,
+      availableLimit: money.nullable(),
+      outstanding: money,
+      statementAmount: money,
+      statementPaid: money,
+      statementDate: postedDate,
+      dueDate: date,
+      minimumDue: money,
+      interestBps: z.number().int().min(0).max(10000),
+      status: z.enum(['ACTIVE', 'FROZEN', 'CLOSED']),
+      detailsComplete: z.boolean().optional(),
+      notes,
     })
     .refine(
       (v) =>
