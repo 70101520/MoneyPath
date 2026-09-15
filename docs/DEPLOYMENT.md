@@ -79,3 +79,9 @@ sudo chmod 600 backups/moneypath.dump
 Use timestamped filenames for retained backups. See the README for restoration into a separate database. Do not remove Compose volumes when preserving data.
 
 Validation used the independent `moneypath-smoke` Compose project and synthetic databases. Its containers were stopped after testing; its volume is retained for inspection. The live `moneypath` project has a separate database volume. Initial Phase 1 validation passed container authentication/accounting checks, 29 finance/security/database tests, a non-root runtime check and a 14-table dump/restore comparison. The current Phase 3 local restore comparison passed across all 19 tables, including decrypted private references.
+
+## 2026-09-15 editable workbook migration
+
+Release `d6a2143` was deployed to the testing VM. The migration completed with 13 migrations, all 80 VM tests passed, and the pre/post migration fingerprints matched across all 27 existing application tables. The backup set is `before-editable-import-20260915T075219Z` under `/opt/moneypath/backups`.
+
+The private reviewed workbook was then imported into the test database: 2 bank accounts, 1 opening salary record, 11 cards, 12 commitments, 3 investments, 4 personal receivable/liability entries, and 1 marriage goal. Two older unreferenced bank snapshots with identical balances were removed after the import to prevent double-counting. The personal import file remains outside Git and is not a production seed. Final LAN browser checks passed for login, protected routes, API authorization, desktop/mobile rendering, overflow, and client errors.

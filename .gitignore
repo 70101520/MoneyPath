@@ -8,6 +8,7 @@ coverage/
 test-results/
 playwright-report/
 *.tsbuildinfo
+*.log
 backups/
 .local-db/
 artifacts/
