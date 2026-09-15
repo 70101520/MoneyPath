@@ -29,6 +29,8 @@ import {
   Wallet,
   Download,
   AlertTriangle,
+  MessageCircle,
+  Sparkles,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import {
@@ -92,7 +94,8 @@ export function Workspace({
     [mobile, setMobile] = useState(false),
     [form, setForm] = useState<{ kind: string; initial?: Record<string, unknown> } | null>(null),
     [toast, setToast] = useState(''),
-    [search, setSearch] = useState('');
+    [search, setSearch] = useState(''),
+    [assistantOpen, setAssistantOpen] = useState(false);
   const active = demo ? demoSection : section;
   const s = calculate(data);
   const guidance = financialActionPlan(data);
@@ -330,621 +333,667 @@ export function Workspace({
               </button>
             </div>
           )}
-          {active === 'integrations' ? (
-            <Integrations demo={demo} data={data} />
-          ) : active === 'assistant' ? (
-            <FinanceAssistant data={data} demo={demo} />
-          ) : ['investments', 'goals', 'what-if'].includes(active) ? (
-            <FuturePlanning data={data} section={active} demo={demo} />
-          ) : active === 'receivables' || active === 'payables' ? (
-            <PersonalBalances
-              key={active}
-              data={data}
-              direction={active === 'receivables' ? 'RECEIVABLE' : 'PAYABLE'}
-              demo={demo}
-            />
-          ) : [
-              'salary-plan',
-              'priority',
-              'purchase',
-              'debt-plan',
-              'notifications',
-              'reports',
-            ].includes(active) ? (
-            <Decisions
-              key={active}
-              data={data}
-              section={active}
-              demo={demo}
-              navigate={go}
-              pay={payment}
-            />
-          ) : active === 'budgets' || active === 'spending' ? (
-            <Planning data={data} section={active} demo={demo} />
-          ) : active === 'dashboard' ? (
-            <>
-              <div className="overview-grid">
-                <section className="safe-card">
-                  <div className="safe-top">
-                    <span>
-                      <ShieldCheck size={17} /> YOUR SAFE-TO-SPEND BALANCE
-                    </span>
-                    <span className="live-label">After reservations</span>
-                  </div>
-                  <div className="safe-amount">
-                    {s.safe.available === null ? (
-                      <span className="unknown-amount">Information Required</span>
-                    ) : (
-                      INR(s.safe.available)
-                    )}
-                  </div>
-                  <p>
-                    {s.safe.shortfall
-                      ? `${INR(s.safe.shortfall)} more is needed to cover your plan.`
-                      : 'Your money to use, with your commitments protected.'}
-                  </p>
-                  <div className="safe-breakdown">
-                    <div>
-                      <span>Available cash</span>
-                      <strong>{INR(s.cash)}</strong>
+          <div className="page-content-transition" key={active}>
+            {active === 'integrations' ? (
+              <Integrations demo={demo} data={data} />
+            ) : active === 'assistant' ? (
+              <FinanceAssistant data={data} demo={demo} />
+            ) : ['investments', 'goals', 'what-if'].includes(active) ? (
+              <FuturePlanning data={data} section={active} demo={demo} />
+            ) : active === 'receivables' || active === 'payables' ? (
+              <PersonalBalances
+                key={active}
+                data={data}
+                direction={active === 'receivables' ? 'RECEIVABLE' : 'PAYABLE'}
+                demo={demo}
+              />
+            ) : [
+                'salary-plan',
+                'priority',
+                'purchase',
+                'debt-plan',
+                'notifications',
+                'reports',
+              ].includes(active) ? (
+              <Decisions
+                key={active}
+                data={data}
+                section={active}
+                demo={demo}
+                navigate={go}
+                pay={payment}
+              />
+            ) : active === 'budgets' || active === 'spending' ? (
+              <Planning data={data} section={active} demo={demo} />
+            ) : active === 'dashboard' ? (
+              <>
+                <div className="overview-grid">
+                  <section className="safe-card">
+                    <div className="safe-top">
+                      <span>
+                        <ShieldCheck size={17} /> YOUR SAFE-TO-SPEND BALANCE
+                      </span>
+                      <span className="live-label">After reservations</span>
                     </div>
-                    <span className="math-symbol">−</span>
-                    <div>
-                      <span>Bills & reservations</span>
-                      <strong>{s.safe.raw === null ? '—' : INR(s.cash - s.safe.raw)}</strong>
+                    <div className="safe-amount">
+                      {s.safe.available === null ? (
+                        <span className="unknown-amount">Information Required</span>
+                      ) : (
+                        INR(s.safe.available)
+                      )}
                     </div>
-                    <span className="safe-icon">
-                      <Wallet size={26} />
-                    </span>
-                  </div>
-                  <div className="safe-footer">
-                    <span>
-                      <span className="status-dot" />
-                      {s.horizon
-                        ? 'Planned through ' + dateLabel(s.horizon)
-                        : 'Add your salary schedule'}
-                    </span>
-                    <button onClick={() => go('settings')}>
-                      View your plan <ArrowUpRight size={15} />
-                    </button>
-                  </div>
-                </section>
-                <section className="panel risk-card">
-                  <div className="panel-heading">
-                    <h2>Financial health</h2>
-                    <span
-                      className={
-                        'badge ' + (s.risk.score !== null && s.risk.score > 50 ? 'amber' : 'green')
-                      }
-                    >
-                      {s.risk.label}
-                    </span>
-                  </div>
-                  <div className="risk-score">
-                    <strong>{s.risk.score ?? '—'}</strong>
-                    <span>
-                      / 100<span>Risk score · lower is better</span>
-                    </span>
-                    <div className="risk-glyph">
-                      <ShieldCheck size={30} />
-                    </div>
-                  </div>
-                  <div className="risk-track">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <i style={{ left: `${s.risk.score ?? 0}%` }} />
-                  </div>
-                  <div className="risk-scale">
-                    <span>Low</span>
-                    <span>Critical</span>
-                  </div>
-                  <div className="risk-reasons">
-                    {s.risk.rules.length ? (
-                      s.risk.rules.slice(0, 2).map((r) => (
-                        <p key={r.id}>
-                          <span className="reason-dot" />
-                          {r.reason}
-                        </p>
-                      ))
-                    ) : (
-                      <p>
-                        {s.risk.score === null
-                          ? 'Complete your inputs to see your risk.'
-                          : 'No basic risk rules are currently triggered.'}
-                      </p>
-                    )}
-                  </div>
-                  <button className="text-button" onClick={() => go('settings')}>
-                    Understand your score <ArrowRight size={14} />
-                  </button>
-                </section>
-              </div>
-              <div className="stats-grid">
-                <Stat
-                  label="Income this month"
-                  value={INR(s.income)}
-                  icon={<ArrowDownLeft size={18} />}
-                  note={
-                    data.settings.monthlyIncome === null
-                      ? 'Expected income: Information Required'
-                      : 'Expected ' + INR(data.settings.monthlyIncome)
-                  }
-                  tone="green"
-                />
-                <Stat
-                  label="Spent this month"
-                  value={INR(s.expenseTotal)}
-                  icon={<ReceiptText size={18} />}
-                  note="Purchases only · no debt repayments"
-                />
-                <Stat
-                  label="Total credit card debt"
-                  value={INR(s.debt)}
-                  icon={<CreditCard size={18} />}
-                  note={`${data.cards.length} cards · including unbilled EMI`}
-                  tone="amber"
-                />
-                <Stat
-                  label="Savings & investments"
-                  value={INR(s.nonSpendable + s.investmentValue)}
-                  icon={<Landmark size={18} />}
-                  note="Non-spendable accounts plus tracked products"
-                  tone="green"
-                />
-                {!!data.personalEntries?.length && (
-                  <>
-                    <Stat
-                      label="Private liabilities"
-                      value={INR(s.privateDebt)}
-                      icon={<ArrowLeftRight size={18} />}
-                      note="Separate from card debt"
-                      tone="amber"
-                    />
-                    <Stat
-                      label="Money expected back"
-                      value={INR(s.expectedReceivables)}
-                      icon={<ArrowDownLeft size={18} />}
-                      note="Excluded from available cash"
-                    />
-                  </>
-                )}
-              </div>
-              <section className="panel planning-insights">
-                <div className="panel-heading">
-                  <div>
-                    <h2>{guidance.headline}</h2>
-                    <p>Updates automatically from the records you enter.</p>
-                  </div>
-                  <button className="text-button" onClick={() => go('assistant')}>
-                    Ask MoneyPath <ArrowRight size={14} />
-                  </button>
-                </div>
-                {guidance.actions.slice(0, 4).map((action) => (
-                  <button
-                    className="action-row"
-                    key={`${action.level}-${action.title}`}
-                    onClick={() => go(action.section)}
-                  >
-                    <span className={`badge ${action.level === 'NOW' ? 'danger' : 'neutral'}`}>
-                      {action.level}
-                    </span>
-                    <span>
-                      <strong>{action.title}</strong>
-                      <small>{action.detail}</small>
-                    </span>
-                    <ChevronRight size={17} />
-                  </button>
-                ))}
-              </section>
-              <div className="detail-grid">
-                <section className="panel payments-panel">
-                  <div className="panel-heading">
-                    <div>
-                      <h2>What’s coming up</h2>
-                      <p>Ahead of the bills. In control of your money.</p>
-                    </div>
-                    <button className="text-button" onClick={() => go('calendar')}>
-                      View calendar <ArrowUpRight size={15} />
-                    </button>
-                  </div>
-                  {upcoming.length ? (
-                    <div className="upcoming-list">
-                      {upcoming.map((o, i) => (
-                        <div className="upcoming-row" key={o.id}>
-                          <span className={'obligation-icon color-' + i}>
-                            {o.kind === 'Credit card' ? (
-                              <CreditCard size={20} />
-                            ) : o.kind.includes('Insurance') || o.kind === 'LIC' ? (
-                              <ShieldCheck size={20} />
-                            ) : (
-                              <Repeat2 size={20} />
-                            )}
-                          </span>
-                          <div className="obligation-title">
-                            <strong>{o.name}</strong>
-                            <span>
-                              {o.kind} <i>·</i> {dateLabel(o.date)}
-                            </span>
-                          </div>
-                          <div className="obligation-amount">
-                            <strong>{INR(o.amount)}</strong>
-                            <span className={o.days <= 3 ? 'due-soon' : ''}>
-                              {o.days < 0
-                                ? `${-o.days} days overdue`
-                                : o.days === 0
-                                  ? 'Due today'
-                                  : `Due in ${o.days} days`}
-                            </span>
-                          </div>
-                          <button
-                            className="row-arrow"
-                            aria-label={'View ' + o.name}
-                            onClick={() =>
-                              o.kind === 'EMI reserve' ? go('emi') : payment(o.id, o.kind, o.amount)
-                            }
-                          >
-                            <ArrowUpRight size={17} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Empty text="Add commitments and card statements to see upcoming payments." />
-                  )}
-                  <div className="panel-foot">
-                    <span>
-                      <span className="status-dot amber-dot" /> Next 7 days
-                    </span>
-                    <strong>
-                      {INR(
-                        s.obligations.filter((o) => o.days <= 7).reduce((a, o) => a + o.amount, 0),
-                      )}{' '}
-                      <small>required cash</small>
-                    </strong>
-                  </div>
-                </section>
-                <section className="panel spending-panel">
-                  <div className="panel-heading">
-                    <div>
-                      <h2>Where your money goes</h2>
-                      <p>This month’s spending, at a glance.</p>
-                    </div>
-                    <button
-                      className="icon-button"
-                      aria-label="View expenses"
-                      onClick={() => go('expenses')}
-                    >
-                      <ArrowUpRight size={18} />
-                    </button>
-                  </div>
-                  {s.categories.length ? (
-                    <>
-                      <div className="donut-wrap">
-                        <ResponsiveContainer width="100%" height={196}>
-                          <PieChart>
-                            <Pie
-                              isAnimationActive={false}
-                              data={s.categories}
-                              dataKey="value"
-                              innerRadius={66}
-                              outerRadius={88}
-                              paddingAngle={4}
-                              stroke="none"
-                              cornerRadius={4}
-                            >
-                              {s.categories.map((c, i) => (
-                                <Cell key={c.name} fill={colors[i % colors.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(v) => INR(Number(v))} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="donut-center">
-                          <span>Total spent</span>
-                          <strong>{INR(s.expenseTotal)}</strong>
-                        </div>
+                    <p>
+                      {s.safe.shortfall
+                        ? `${INR(s.safe.shortfall)} more is needed to cover your plan.`
+                        : 'Your money to use, with your commitments protected.'}
+                    </p>
+                    <div className="safe-breakdown">
+                      <div>
+                        <span>Available cash</span>
+                        <strong>{INR(s.cash)}</strong>
                       </div>
-                      <div className="chart-legend">
-                        {s.categories.slice(0, 4).map((c, i) => (
-                          <div key={c.name}>
-                            <span>
-                              <i style={{ background: colors[i % colors.length] }} />
-                              {c.name}
+                      <span className="math-symbol">−</span>
+                      <div>
+                        <span>Bills & reservations</span>
+                        <strong>{s.safe.raw === null ? '—' : INR(s.cash - s.safe.raw)}</strong>
+                      </div>
+                      <span className="safe-icon">
+                        <Wallet size={26} />
+                      </span>
+                    </div>
+                    <div className="safe-footer">
+                      <span>
+                        <span className="status-dot" />
+                        {s.horizon
+                          ? 'Planned through ' + dateLabel(s.horizon)
+                          : 'Add your salary schedule'}
+                      </span>
+                      <button onClick={() => go('settings')}>
+                        View your plan <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                  </section>
+                  <section className="panel risk-card">
+                    <div className="panel-heading">
+                      <h2>Financial health</h2>
+                      <span
+                        className={
+                          'badge ' +
+                          (s.risk.score !== null && s.risk.score > 50 ? 'amber' : 'green')
+                        }
+                      >
+                        {s.risk.label}
+                      </span>
+                    </div>
+                    <div className="risk-score">
+                      <strong>{s.risk.score ?? '—'}</strong>
+                      <span>
+                        / 100<span>Risk score · lower is better</span>
+                      </span>
+                      <div className="risk-glyph">
+                        <ShieldCheck size={30} />
+                      </div>
+                    </div>
+                    <div className="risk-track">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                      <i style={{ left: `${s.risk.score ?? 0}%` }} />
+                    </div>
+                    <div className="risk-scale">
+                      <span>Low</span>
+                      <span>Critical</span>
+                    </div>
+                    <div className="risk-reasons">
+                      {s.risk.rules.length ? (
+                        s.risk.rules.slice(0, 2).map((r) => (
+                          <p key={r.id}>
+                            <span className="reason-dot" />
+                            {r.reason}
+                          </p>
+                        ))
+                      ) : (
+                        <p>
+                          {s.risk.score === null
+                            ? 'Complete your inputs to see your risk.'
+                            : 'No basic risk rules are currently triggered.'}
+                        </p>
+                      )}
+                    </div>
+                    <button className="text-button" onClick={() => go('settings')}>
+                      Understand your score <ArrowRight size={14} />
+                    </button>
+                  </section>
+                </div>
+                <div className="stats-grid">
+                  <Stat
+                    label="Income this month"
+                    value={INR(s.income)}
+                    icon={<ArrowDownLeft size={18} />}
+                    note={
+                      data.settings.monthlyIncome === null
+                        ? 'Expected income: Information Required'
+                        : 'Expected ' + INR(data.settings.monthlyIncome)
+                    }
+                    tone="green"
+                  />
+                  <Stat
+                    label="Spent this month"
+                    value={INR(s.expenseTotal)}
+                    icon={<ReceiptText size={18} />}
+                    note="Purchases only · no debt repayments"
+                  />
+                  <Stat
+                    label="Total credit card debt"
+                    value={INR(s.debt)}
+                    icon={<CreditCard size={18} />}
+                    note={`${data.cards.length} cards · including unbilled EMI`}
+                    tone="amber"
+                  />
+                  <Stat
+                    label="Savings & investments"
+                    value={INR(s.nonSpendable + s.investmentValue)}
+                    icon={<Landmark size={18} />}
+                    note="Non-spendable accounts plus tracked products"
+                    tone="green"
+                  />
+                  {!!data.personalEntries?.length && (
+                    <>
+                      <Stat
+                        label="Private liabilities"
+                        value={INR(s.privateDebt)}
+                        icon={<ArrowLeftRight size={18} />}
+                        note="Separate from card debt"
+                        tone="amber"
+                      />
+                      <Stat
+                        label="Money expected back"
+                        value={INR(s.expectedReceivables)}
+                        icon={<ArrowDownLeft size={18} />}
+                        note="Excluded from available cash"
+                      />
+                    </>
+                  )}
+                </div>
+                <section className="panel planning-insights">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>{guidance.headline}</h2>
+                      <p>Updates automatically from the records you enter.</p>
+                    </div>
+                    <button className="text-button" onClick={() => go('assistant')}>
+                      Ask MoneyPath <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  {guidance.actions.slice(0, 4).map((action) => (
+                    <button
+                      className="action-row"
+                      key={`${action.level}-${action.title}`}
+                      onClick={() => go(action.section)}
+                    >
+                      <span className={`badge ${action.level === 'NOW' ? 'danger' : 'neutral'}`}>
+                        {action.level}
+                      </span>
+                      <span>
+                        <strong>{action.title}</strong>
+                        <small>{action.detail}</small>
+                      </span>
+                      <ChevronRight size={17} />
+                    </button>
+                  ))}
+                </section>
+                <div className="detail-grid">
+                  <section className="panel payments-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>What’s coming up</h2>
+                        <p>Ahead of the bills. In control of your money.</p>
+                      </div>
+                      <button className="text-button" onClick={() => go('calendar')}>
+                        View calendar <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                    {upcoming.length ? (
+                      <div className="upcoming-list">
+                        {upcoming.map((o, i) => (
+                          <div className="upcoming-row" key={o.id}>
+                            <span className={'obligation-icon color-' + i}>
+                              {o.kind === 'Credit card' ? (
+                                <CreditCard size={20} />
+                              ) : o.kind.includes('Insurance') || o.kind === 'LIC' ? (
+                                <ShieldCheck size={20} />
+                              ) : (
+                                <Repeat2 size={20} />
+                              )}
                             </span>
-                            <strong>{INR(c.value)}</strong>
+                            <div className="obligation-title">
+                              <strong>{o.name}</strong>
+                              <span>
+                                {o.kind} <i>·</i> {dateLabel(o.date)}
+                              </span>
+                            </div>
+                            <div className="obligation-amount">
+                              <strong>{INR(o.amount)}</strong>
+                              <span className={o.days <= 3 ? 'due-soon' : ''}>
+                                {o.days < 0
+                                  ? `${-o.days} days overdue`
+                                  : o.days === 0
+                                    ? 'Due today'
+                                    : `Due in ${o.days} days`}
+                              </span>
+                            </div>
+                            <button
+                              className="row-arrow"
+                              aria-label={'View ' + o.name}
+                              onClick={() =>
+                                o.kind === 'EMI reserve'
+                                  ? go('emi')
+                                  : payment(o.id, o.kind, o.amount)
+                              }
+                            >
+                              <ArrowUpRight size={17} />
+                            </button>
                           </div>
                         ))}
                       </div>
-                    </>
-                  ) : (
-                    <Empty text="Your spending picture starts with your first expense." />
-                  )}
+                    ) : (
+                      <Empty text="Add commitments and card statements to see upcoming payments." />
+                    )}
+                    <div className="panel-foot">
+                      <span>
+                        <span className="status-dot amber-dot" /> Next 7 days
+                      </span>
+                      <strong>
+                        {INR(
+                          s.obligations
+                            .filter((o) => o.days <= 7)
+                            .reduce((a, o) => a + o.amount, 0),
+                        )}{' '}
+                        <small>required cash</small>
+                      </strong>
+                    </div>
+                  </section>
+                  <section className="panel spending-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Where your money goes</h2>
+                        <p>This month’s spending, at a glance.</p>
+                      </div>
+                      <button
+                        className="icon-button"
+                        aria-label="View expenses"
+                        onClick={() => go('expenses')}
+                      >
+                        <ArrowUpRight size={18} />
+                      </button>
+                    </div>
+                    {s.categories.length ? (
+                      <>
+                        <div className="donut-wrap">
+                          <ResponsiveContainer width="100%" height={196}>
+                            <PieChart>
+                              <Pie
+                                isAnimationActive={false}
+                                data={s.categories}
+                                dataKey="value"
+                                innerRadius={66}
+                                outerRadius={88}
+                                paddingAngle={4}
+                                stroke="none"
+                                cornerRadius={4}
+                              >
+                                {s.categories.map((c, i) => (
+                                  <Cell key={c.name} fill={colors[i % colors.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v) => INR(Number(v))} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="donut-center">
+                            <span>Total spent</span>
+                            <strong>{INR(s.expenseTotal)}</strong>
+                          </div>
+                        </div>
+                        <div className="chart-legend">
+                          {s.categories.slice(0, 4).map((c, i) => (
+                            <div key={c.name}>
+                              <span>
+                                <i style={{ background: colors[i % colors.length] }} />
+                                {c.name}
+                              </span>
+                              <strong>{INR(c.value)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <Empty text="Your spending picture starts with your first expense." />
+                    )}
+                  </section>
+                </div>
+                <div className="bottom-grid">
+                  <section className="panel debt-panel">
+                    <div className="debt-icon">
+                      <TrendingDown size={24} />
+                    </div>
+                    <div>
+                      <h2>Make your debt move in the right direction.</h2>
+                      <p>
+                        {INR(s.debtPaid)} paid − {INR(s.newSpending)} new debt this month
+                      </p>
+                    </div>
+                    <div className="debt-result">
+                      <strong className={s.netDebtReduction >= 0 ? 'text-green' : 'text-amber'}>
+                        {INR(s.netDebtReduction)}
+                      </strong>
+                      <span>net debt reduction</span>
+                    </div>
+                  </section>
+                  <section className="tip-panel">
+                    <span className="mini-leaf">✳</span>
+                    <div>
+                      <strong>A small pause makes a difference.</strong>
+                      <p>Check your safe-to-spend balance before your next purchase.</p>
+                    </div>
+                  </section>
+                </div>
+                <div className="dashboard-meta">
+                  <span>
+                    <ShieldCheck size={13} /> Calculated from your records. Expected income and
+                    credit limits are excluded.
+                  </span>
+                  <span>All amounts in INR</span>
+                </div>
+              </>
+            ) : active === 'calendar' ? (
+              <FinancialCalendar data={data} />
+            ) : active === 'settings' ? (
+              <div className="settings-grid">
+                <section className="panel padded">
+                  <h2>Your money plan</h2>
+                  <p className="muted">
+                    Reservations apply to cash inside spendable accounts. Update remaining
+                    essentials as the month progresses.
+                  </p>
+                  <dl className="breakdown-list">
+                    {[
+                      ['Available cash', s.cash],
+                      ['Upcoming bills & sinking funds', s.mandatory],
+                      ['Essential living', data.settings.essentialReserve],
+                      ['Emergency earmark', data.settings.emergencyReserve],
+                      ['Goal earmark', data.settings.goalReserve],
+                      ['Extra debt payment', data.settings.extraDebtReserve],
+                      ['Safe to spend', s.safe.available],
+                    ].map(([label, value]) => (
+                      <div key={String(label)}>
+                        <dt>{label}</dt>
+                        <dd>{value === null ? 'Information Required' : INR(Number(value))}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="muted">
+                    Salary normally arrives on day {data.settings.salaryDay ?? '—'}. Next salary:{' '}
+                    {s.horizon ? dateLabel(s.horizon) : 'Information Required'}.
+                  </p>
                 </section>
-              </div>
-              <div className="bottom-grid">
-                <section className="panel debt-panel">
-                  <div className="debt-icon">
-                    <TrendingDown size={24} />
-                  </div>
-                  <div>
-                    <h2>Make your debt move in the right direction.</h2>
-                    <p>
-                      {INR(s.debtPaid)} paid − {INR(s.newSpending)} new debt this month
-                    </p>
-                  </div>
-                  <div className="debt-result">
-                    <strong className={s.netDebtReduction >= 0 ? 'text-green' : 'text-amber'}>
-                      {INR(s.netDebtReduction)}
-                    </strong>
-                    <span>net debt reduction</span>
-                  </div>
-                </section>
-                <section className="tip-panel">
-                  <span className="mini-leaf">✳</span>
-                  <div>
-                    <strong>A small pause makes a difference.</strong>
-                    <p>Check your safe-to-spend balance before your next purchase.</p>
-                  </div>
-                </section>
-              </div>
-              <div className="dashboard-meta">
-                <span>
-                  <ShieldCheck size={13} /> Calculated from your records. Expected income and credit
-                  limits are excluded.
-                </span>
-                <span>All amounts in INR</span>
-              </div>
-            </>
-          ) : active === 'calendar' ? (
-            <FinancialCalendar data={data} />
-          ) : active === 'settings' ? (
-            <div className="settings-grid">
-              <section className="panel padded">
-                <h2>Your money plan</h2>
-                <p className="muted">
-                  Reservations apply to cash inside spendable accounts. Update remaining essentials
-                  as the month progresses.
-                </p>
-                <dl className="breakdown-list">
-                  {[
-                    ['Available cash', s.cash],
-                    ['Upcoming bills & sinking funds', s.mandatory],
-                    ['Essential living', data.settings.essentialReserve],
-                    ['Emergency earmark', data.settings.emergencyReserve],
-                    ['Goal earmark', data.settings.goalReserve],
-                    ['Extra debt payment', data.settings.extraDebtReserve],
-                    ['Safe to spend', s.safe.available],
-                  ].map(([label, value]) => (
-                    <div key={String(label)}>
-                      <dt>{label}</dt>
-                      <dd>{value === null ? 'Information Required' : INR(Number(value))}</dd>
+                <section className="panel padded">
+                  <h2>Why this risk score?</h2>
+                  <p className="muted">
+                    Basic rules v1 · {s.risk.score ?? '—'}/100 · {s.risk.label}
+                  </p>
+                  {s.risk.rules.map((r) => (
+                    <div className="rule" key={r.id}>
+                      <span>+{r.points}</span>
+                      {r.reason}
                     </div>
                   ))}
-                </dl>
-                <p className="muted">
-                  Salary normally arrives on day {data.settings.salaryDay ?? '—'}. Next salary:{' '}
-                  {s.horizon ? dateLabel(s.horizon) : 'Information Required'}.
-                </p>
-              </section>
-              <section className="panel padded">
-                <h2>Why this risk score?</h2>
-                <p className="muted">
-                  Basic rules v1 · {s.risk.score ?? '—'}/100 · {s.risk.label}
-                </p>
-                {s.risk.rules.map((r) => (
-                  <div className="rule" key={r.id}>
-                    <span>+{r.points}</span>
-                    {r.reason}
-                  </div>
-                ))}
-                <p className="muted">
-                  0–30 Low · 31–50 Moderate · 51–70 High · 71–100 Critical. This Phase 1 score
-                  covers recorded card debt, cash and commitments; loans and longer-term trends are
-                  not yet tracked.
-                </p>
-                <h3>Data & privacy</h3>
-                <p className="muted">
-                  Notes and card identifiers are encrypted. Export your transaction records for your
-                  own review.
-                </p>
-                {demo ? (
-                  <span className="badge neutral">Exports available after account setup</span>
-                ) : (
-                  <div className="heading-actions">
-                    <a href="/api/export" className="button">
-                      <Download size={16} />
-                      Export transactions CSV
-                    </a>
-                    <a href="/api/export/excel" className="button">
-                      <Download size={16} />
-                      Export Excel workbook
-                    </a>
-                  </div>
-                )}
-              </section>
-            </div>
-          ) : (
-            <>
-              {active === 'cards' && (
-                <div className="stats-grid three">
-                  <Stat
-                    label="Old bills to pay"
-                    value={INR(s.oldBill)}
-                    note="Remaining statement balances"
-                  />
-                  <Stat
-                    label="New / unbilled spending"
-                    value={INR(
-                      data.cards.reduce(
-                        (a, c) => a + c.outstanding - (c.statementAmount - c.statementPaid),
-                        0,
-                      ),
-                    )}
-                    note="Posted outstanding minus old bills"
-                  />
-                  <Stat
-                    label="Unbilled EMI liability"
-                    value={INR(
-                      data.cards
-                        .flatMap((c) => c.emis)
-                        .reduce((a, e) => a + e.principalRemaining, 0),
-                    )}
-                    note="Not included in posted outstanding"
-                  />
-                </div>
-              )}
-              {active === 'cards' ? (
-                <div className="cards-grid">
-                  {data.cards.map((c, i) => {
-                    const emi = c.emis.reduce((a, e) => a + e.principalRemaining, 0);
-                    const difference =
-                      c.availableLimit === null
-                        ? null
-                        : c.creditLimit - c.availableLimit - c.outstanding - emi;
-                    return (
-                      <section className="panel card-detail" key={c.id}>
-                        <div className={'physical-card card-theme-' + (i % 3)}>
-                          <div>
-                            <strong>{c.bank}</strong>
-                            <span className="card-chip">▥</span>
-                          </div>
-                          <h2>{c.name}</h2>
-                          <div>
-                            <span>•••• {c.lastFour ?? '••••'}</span>
-                            <span>{c.status}</span>
-                          </div>
-                        </div>
-                        <div className="card-body">
-                          <dl className="breakdown-list">
-                            <div>
-                              <dt>Old bill to pay</dt>
-                              <dd>{INR(c.statementAmount - c.statementPaid)}</dd>
-                            </div>
-                            <div>
-                              <dt>New / unbilled</dt>
-                              <dd>{INR(c.outstanding - c.statementAmount + c.statementPaid)}</dd>
-                            </div>
-                            <div>
-                              <dt>Unbilled EMI principal</dt>
-                              <dd>{INR(emi)}</dd>
-                            </div>
-                            <div>
-                              <dt>Total current debt</dt>
-                              <dd>{INR(c.outstanding + emi)}</dd>
-                            </div>
-                          </dl>
-                          <p className="muted">
-                            Due {dateLabel(c.dueDate)} · Minimum{' '}
-                            {INR(Math.max(0, c.minimumDue - c.statementPaid))}
-                          </p>
-                          <details>
-                            <summary>Statement & limit reconciliation</summary>
-                            {(c.carriedBalance ?? 0) > 0 && (
-                              <p className="muted">
-                                Includes {INR(c.carriedBalance!)} carried from an earlier bill, due{' '}
-                                {dateLabel(c.carriedDueDate!)}. Statement payments clear this
-                                carried balance first.
-                              </p>
-                            )}
-                            <p className="muted">
-                              Statement {dateLabel(c.statementDate)}: {INR(c.statementAmount)} ·
-                              Paid {INR(c.statementPaid)}. APR {c.interestBps / 100}%.
-                            </p>
-                            <p className="muted">
-                              Limit {INR(c.creditLimit)} − reported available{' '}
-                              {c.availableLimit === null
-                                ? 'Information Required'
-                                : INR(c.availableLimit)}{' '}
-                              − posted debt {INR(c.outstanding)} − blocked EMI {INR(emi)} ={' '}
-                              {difference === null ? 'Information Required' : INR(difference)}.
-                            </p>
-                            <p className="muted">
-                              {difference === 0
-                                ? 'Reconciled.'
-                                : difference === null
-                                  ? 'Enter the latest available limit with your next statement.'
-                                  : 'Difference requires checking pending holds, fees or the issuer’s EMI structure.'}{' '}
-                              Credit availability is never cash.
-                            </p>
-                          </details>
-                          {!!c.statements?.length && (
-                            <details>
-                              <summary>Previous statements</summary>
-                              {c.statements.map((statement) => (
-                                <p className="muted" key={statement.id}>
-                                  {dateLabel(statement.statementDate)} · Bill{' '}
-                                  {INR(statement.amount)} · Paid before rollover{' '}
-                                  {INR(statement.paid)} · Carried{' '}
-                                  {INR(statement.amount - statement.paid)}
-                                </p>
-                              ))}
-                            </details>
-                          )}
-                          <div className="card-actions">
-                            <button
-                              className="button primary"
-                              onClick={() =>
-                                open('payment', {
-                                  type: 'STATEMENT',
-                                  cardId: c.id,
-                                  amount: c.statementAmount - c.statementPaid,
-                                })
-                              }
-                            >
-                              Record payment
-                            </button>
-                            <button
-                              className="text-button"
-                              onClick={() => open('statement', { id: c.id, status: c.status })}
-                            >
-                              Next statement →
-                            </button>
-                          </div>
-                        </div>
-                      </section>
-                    );
-                  })}
-                  {!data.cards.length && (
-                    <Empty text="Add your first card with its latest statement and posted outstanding." />
+                  <p className="muted">
+                    0–30 Low · 31–50 Moderate · 51–70 High · 71–100 Critical. This Phase 1 score
+                    covers recorded card debt, cash and commitments; loans and longer-term trends
+                    are not yet tracked.
+                  </p>
+                  <h3>Data & privacy</h3>
+                  <p className="muted">
+                    Notes and card identifiers are encrypted. Export your transaction records for
+                    your own review.
+                  </p>
+                  {demo ? (
+                    <span className="badge neutral">Exports available after account setup</span>
+                  ) : (
+                    <div className="heading-actions">
+                      <a href="/api/export" className="button">
+                        <Download size={16} />
+                        Export transactions CSV
+                      </a>
+                      <a href="/api/export/excel" className="button">
+                        <Download size={16} />
+                        Export Excel workbook
+                      </a>
+                    </div>
                   )}
-                </div>
-              ) : (
-                <section className="panel records-panel">
-                  <div className="panel-heading">
-                    <h2>
-                      {name}{' '}
-                      <span className="badge neutral">
-                        {active === 'emi'
-                          ? data.cards.flatMap((c) => c.emis).length
-                          : active === 'accounts'
-                            ? data.accounts.length
-                            : active === 'commitments'
-                              ? data.commitments.length
-                              : active === 'income'
-                                ? data.incomes.length
-                                : active === 'expenses'
-                                  ? data.expenses.length
-                                  : data.payments.length}{' '}
-                        records
-                      </span>
-                    </h2>
-                    <input
-                      className="search-input"
-                      placeholder="Filter records…"
-                      aria-label="Filter records"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                </section>
+              </div>
+            ) : (
+              <>
+                {active === 'cards' && (
+                  <div className="stats-grid three">
+                    <Stat
+                      label="Old bills to pay"
+                      value={INR(s.oldBill)}
+                      note="Remaining statement balances"
+                    />
+                    <Stat
+                      label="New / unbilled spending"
+                      value={INR(
+                        data.cards.reduce(
+                          (a, c) => a + c.outstanding - (c.statementAmount - c.statementPaid),
+                          0,
+                        ),
+                      )}
+                      note="Posted outstanding minus old bills"
+                    />
+                    <Stat
+                      label="Unbilled EMI liability"
+                      value={INR(
+                        data.cards
+                          .flatMap((c) => c.emis)
+                          .reduce((a, e) => a + e.principalRemaining, 0),
+                      )}
+                      note="Not included in posted outstanding"
                     />
                   </div>
-                  <Records data={data} section={active} search={search} open={open} />
-                </section>
-              )}
-            </>
-          )}
+                )}
+                {active === 'cards' ? (
+                  <div className="cards-grid">
+                    {data.cards.map((c, i) => {
+                      const emi = c.emis.reduce((a, e) => a + e.principalRemaining, 0);
+                      const difference =
+                        c.availableLimit === null
+                          ? null
+                          : c.creditLimit - c.availableLimit - c.outstanding - emi;
+                      return (
+                        <section className="panel card-detail" key={c.id}>
+                          <div className={'physical-card card-theme-' + (i % 3)}>
+                            <div>
+                              <strong>{c.bank}</strong>
+                              <span className="card-chip">▥</span>
+                            </div>
+                            <h2>{c.name}</h2>
+                            <div>
+                              <span>•••• {c.lastFour ?? '••••'}</span>
+                              <span>{c.status}</span>
+                            </div>
+                          </div>
+                          <div className="card-body">
+                            <dl className="breakdown-list">
+                              <div>
+                                <dt>Old bill to pay</dt>
+                                <dd>{INR(c.statementAmount - c.statementPaid)}</dd>
+                              </div>
+                              <div>
+                                <dt>New / unbilled</dt>
+                                <dd>{INR(c.outstanding - c.statementAmount + c.statementPaid)}</dd>
+                              </div>
+                              <div>
+                                <dt>Unbilled EMI principal</dt>
+                                <dd>{INR(emi)}</dd>
+                              </div>
+                              <div>
+                                <dt>Total current debt</dt>
+                                <dd>{INR(c.outstanding + emi)}</dd>
+                              </div>
+                            </dl>
+                            <p className="muted">
+                              Due {dateLabel(c.dueDate)} · Minimum{' '}
+                              {INR(Math.max(0, c.minimumDue - c.statementPaid))}
+                            </p>
+                            <details>
+                              <summary>Statement & limit reconciliation</summary>
+                              {(c.carriedBalance ?? 0) > 0 && (
+                                <p className="muted">
+                                  Includes {INR(c.carriedBalance!)} carried from an earlier bill,
+                                  due {dateLabel(c.carriedDueDate!)}. Statement payments clear this
+                                  carried balance first.
+                                </p>
+                              )}
+                              <p className="muted">
+                                Statement {dateLabel(c.statementDate)}: {INR(c.statementAmount)} ·
+                                Paid {INR(c.statementPaid)}. APR {c.interestBps / 100}%.
+                              </p>
+                              <p className="muted">
+                                Limit {INR(c.creditLimit)} − reported available{' '}
+                                {c.availableLimit === null
+                                  ? 'Information Required'
+                                  : INR(c.availableLimit)}{' '}
+                                − posted debt {INR(c.outstanding)} − blocked EMI {INR(emi)} ={' '}
+                                {difference === null ? 'Information Required' : INR(difference)}.
+                              </p>
+                              <p className="muted">
+                                {difference === 0
+                                  ? 'Reconciled.'
+                                  : difference === null
+                                    ? 'Enter the latest available limit with your next statement.'
+                                    : 'Difference requires checking pending holds, fees or the issuer’s EMI structure.'}{' '}
+                                Credit availability is never cash.
+                              </p>
+                            </details>
+                            {!!c.statements?.length && (
+                              <details>
+                                <summary>Previous statements</summary>
+                                {c.statements.map((statement) => (
+                                  <p className="muted" key={statement.id}>
+                                    {dateLabel(statement.statementDate)} · Bill{' '}
+                                    {INR(statement.amount)} · Paid before rollover{' '}
+                                    {INR(statement.paid)} · Carried{' '}
+                                    {INR(statement.amount - statement.paid)}
+                                  </p>
+                                ))}
+                              </details>
+                            )}
+                            <div className="card-actions">
+                              <button
+                                className="button primary"
+                                onClick={() =>
+                                  open('payment', {
+                                    type: 'STATEMENT',
+                                    cardId: c.id,
+                                    amount: c.statementAmount - c.statementPaid,
+                                  })
+                                }
+                              >
+                                Record payment
+                              </button>
+                              <button
+                                className="text-button"
+                                onClick={() => open('statement', { id: c.id, status: c.status })}
+                              >
+                                Next statement →
+                              </button>
+                            </div>
+                          </div>
+                        </section>
+                      );
+                    })}
+                    {!data.cards.length && (
+                      <Empty text="Add your first card with its latest statement and posted outstanding." />
+                    )}
+                  </div>
+                ) : (
+                  <section className="panel records-panel">
+                    <div className="panel-heading">
+                      <h2>
+                        {name}{' '}
+                        <span className="badge neutral">
+                          {active === 'emi'
+                            ? data.cards.flatMap((c) => c.emis).length
+                            : active === 'accounts'
+                              ? data.accounts.length
+                              : active === 'commitments'
+                                ? data.commitments.length
+                                : active === 'income'
+                                  ? data.incomes.length
+                                  : active === 'expenses'
+                                    ? data.expenses.length
+                                    : data.payments.length}{' '}
+                          records
+                        </span>
+                      </h2>
+                      <input
+                        className="search-input"
+                        placeholder="Filter records…"
+                        aria-label="Filter records"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                    <Records data={data} section={active} search={search} open={open} />
+                  </section>
+                )}
+              </>
+            )}
+          </div>
         </main>
       </div>
+      {active !== 'assistant' && (
+        <>
+          <button
+            className="assistant-fab"
+            onClick={() => setAssistantOpen(true)}
+            aria-label="Open Ask MoneyPath"
+            aria-expanded={assistantOpen}
+          >
+            <Sparkles size={18} />
+            <span>Ask MoneyPath</span>
+            <MessageCircle size={19} />
+          </button>
+          {assistantOpen && (
+            <div className="assistant-drawer-layer" role="presentation">
+              <button
+                className="assistant-drawer-backdrop"
+                aria-label="Close Ask MoneyPath"
+                onClick={() => setAssistantOpen(false)}
+              />
+              <aside className="assistant-drawer" aria-label="Ask MoneyPath chat">
+                <div className="assistant-drawer-heading">
+                  <div>
+                    <small>YOUR FINANCIAL COMPANION</small>
+                    <h2>Ask MoneyPath</h2>
+                  </div>
+                  <button
+                    className="icon-button"
+                    onClick={() => setAssistantOpen(false)}
+                    aria-label="Close assistant"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <FinanceAssistant data={data} demo={demo} compact />
+              </aside>
+            </div>
+          )}
+        </>
+      )}
       {form && (
         <RecordForm
           key={form.kind + String(form.initial?.id ?? '')}

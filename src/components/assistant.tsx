@@ -13,7 +13,15 @@ type Message = {
   confirmation?: string;
   userMessageId?: string;
 };
-export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: boolean }) {
+export function FinanceAssistant({
+  data,
+  demo = false,
+  compact = false,
+}: {
+  data: Data;
+  demo?: boolean;
+  compact?: boolean;
+}) {
   const snapshot = calculate(data),
     nextPayment = paymentPriority(data).ranked[0];
   const [messages, setMessages] = useState<Message[]>([
@@ -156,7 +164,7 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
     }
   }
   return (
-    <div className="planning">
+    <div className={`planning finance-assistant ${compact ? 'compact' : ''}`}>
       <section className="panel planning-insights">
         <h2>Ask MoneyPath</h2>
         <p>

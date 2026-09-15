@@ -51,6 +51,31 @@ test('mobile dashboard, navigation, and expense form fit a narrow viewport', asy
   await page.getByRole('button', { name: 'Financial calendar', exact: true }).click();
   await expect(page.locator('.mobile-agenda')).toBeVisible();
 });
+test('Ask MoneyPath stays available as a side chat while moving between pages', async ({
+  page,
+}) => {
+  await page.goto('/demo');
+  const trigger = page.getByRole('button', { name: 'Open Ask MoneyPath' });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const drawer = page.getByRole('complementary', { name: 'Ask MoneyPath chat' });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole('textbox', { name: 'Message' }).fill('Mera current status batao');
+  await drawer.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(
+    drawer.getByText(/current MoneyPath status database ke recorded data par based hai/),
+  ).toBeVisible();
+  await drawer.getByRole('button', { name: 'Close assistant' }).click();
+  await expect(drawer).toBeHidden();
+  await page.getByRole('button', { name: 'Income', exact: true }).click();
+  await expect(page.locator('.page-content-transition')).toBeVisible();
+  expect(
+    await page
+      .locator('.page-content-transition')
+      .evaluate((node) => getComputedStyle(node).animationName),
+  ).toBe('page-arrive');
+  await expect(trigger).toBeVisible();
+});
 test('protected routes redirect and cross-origin mutations fail', async ({ page, request }) => {
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/login$/);
