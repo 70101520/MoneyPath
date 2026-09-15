@@ -71,6 +71,20 @@ describe('MoneyPath conversational finance', () => {
     expect(ceiling.answer).toContain('safe cash purchase ceiling');
     expect(ceiling.details.join(' ')).toContain('available card limit');
   });
+  it('answers misspelled Hinglish current-status questions without falling back to entry help', () => {
+    const data = sampleData('2026-09-14');
+    data.cards = data.cards.map((card) => ({ ...card, detailsComplete: false }));
+    for (const question of [
+      'ky abhi mera current finaceial status sahi hi?',
+      'mera finanical status abhi sahi hi ya nehi?',
+    ]) {
+      const reply = chatReply(data, question);
+      expect(reply.answer).toContain('recorded position ko attention chahiye');
+      expect(reply.answer).not.toContain('I understood this as');
+      expect(reply.details.join(' ')).toContain('3 credit cards');
+      expect(reply.details.join(' ')).not.toContain('Axis 1: review');
+    }
+  });
   it('requires confirmation for emergency expense and supports cancellation without a draft', () => {
     const data = sampleData('2026-09-14'),
       reply = chatReply(data, 'emergency medical expense 8000 hua', {

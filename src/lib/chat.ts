@@ -20,6 +20,14 @@ export type ChatReply = {
   memory?: ChatMemory;
 };
 
+function asksForCurrentStatus(text: string) {
+  const financeWord = /financ(?:e|ial)|finanical|finaceial|fincial|money/;
+  return (
+    /(current status|mera status|my status|money status)/.test(text) ||
+    (financeWord.test(text) && /(status|sahi|thik|theek|kaisa|haal|condition)/.test(text))
+  );
+}
+
 export function parseAmount(message: string) {
   const matches = [
     ...message
@@ -101,18 +109,28 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
       answer: 'Theek hai, proposed entry cancel kar di. Koi financial record change nahi hua.',
       details: [],
     };
-  if (/(current status|mera status|money status|financial status)/.test(text)) {
+  if (asksForCurrentStatus(text)) {
     const report = spendingReport(data, summary.asOf.slice(0, 7));
     const next = summary.obligations.find((item) => item.amount > 0);
+    const incompleteCards = data.cards.filter((item) => item.detailsComplete === false).length;
+    const status = summary.required.length
+      ? 'Abhi final status fully verified nahi hai, aur recorded position ko attention chahiye.'
+      : (summary.safe.shortfall ?? 0) > 0 || (summary.risk.score ?? 0) > 50
+        ? 'Abhi financial status healthy nahi hai; spending aur payments ko carefully manage karna hoga.'
+        : 'Recorded data ke hisab se current financial status manageable hai.';
     return {
-      answer: `${data.settings.name || 'Balaram'}, aapka current MoneyPath status database ke recorded data par based hai.`,
+      answer: `${data.settings.name || 'Balaram'}, ${status}`,
       details: [
         `Bank/cash: ${INR(summary.cash)}; safe-to-spend: ${summary.safe.available === null ? 'Information Required' : INR(summary.safe.available)}.`,
         `Credit-card debt: ${INR(summary.debt)}; other debt: ${INR(summary.privateDebt)}.`,
         `Next salary horizon: ${summary.horizon ?? 'Information Required'}${next ? `; next payment ${next.name} ${INR(next.amount)} due ${next.date}` : ''}.`,
         `This month spent: ${INR(report.total)} (essential ${INR(report.essential)}, flexible ${INR(report.flexible)}, wants ${INR(report.wants)}).`,
         `Risk: ${summary.risk.score === null ? 'Information Required' : `${summary.risk.score}/100 ${summary.risk.label}`}.`,
-        financialActionPlan(data).actions[0]?.detail ?? 'Keep records current.',
+        ...(incompleteCards
+          ? [
+              `${incompleteCards} credit cards ki statement, due date, limit aur interest details Cards page par verify karein.`,
+            ]
+          : [financialActionPlan(data).actions[0]?.detail ?? 'Keep records current.']),
       ],
     };
   }

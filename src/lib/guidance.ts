@@ -10,6 +10,15 @@ export type GuidanceAction = {
   section: string;
 };
 
+function requiredSummary(required: string[]) {
+  const cardItems = required.filter((item) => item.includes(': review card'));
+  const otherItems = required.filter((item) => !item.includes(': review card'));
+  return [
+    ...(cardItems.length ? [`${cardItems.length} credit cards need review`] : []),
+    ...otherItems.slice(0, 3),
+  ].join(', ');
+}
+
 export function financialActionPlan(data: Data): { headline: string; actions: GuidanceAction[] } {
   const summary = calculate(data),
     actions: GuidanceAction[] = [];
@@ -20,7 +29,7 @@ export function financialActionPlan(data: Data): { headline: string; actions: Gu
         {
           level: 'NOW',
           title: 'Complete your financial setup',
-          detail: `Add ${summary.required.join(', ')}. Guidance will not guess missing money.`,
+          detail: `Add or verify ${requiredSummary(summary.required)}. Guidance will not guess missing money.`,
           section: 'settings',
         },
       ],
