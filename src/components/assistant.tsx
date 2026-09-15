@@ -302,10 +302,15 @@ export function FinanceAssistant({
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              lang="en-IN"
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
               maxLength={500}
-              placeholder="Example: Can I buy a phone for 25000?"
+              placeholder="Hindi, English or Hinglish: Mera financial status kaisa hai?"
               required
             />
+            <small>Typing mistakes are okay. MoneyPath matches the intended finance wording.</small>
           </label>
           <button className="button primary" disabled={busy}>
             {busy ? 'Checking…' : 'Send'}

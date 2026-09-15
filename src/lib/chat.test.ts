@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatReply, parseAmount } from './chat';
+import { chatReply, normalizeChatText, parseAmount } from './chat';
 import { sampleData } from './sample';
 
 describe('MoneyPath conversational finance', () => {
@@ -7,6 +7,15 @@ describe('MoneyPath conversational finance', () => {
     expect(parseAmount('price 25k')).toBe(2_500_000);
     expect(parseAmount('borrow 2 lakh')).toBe(20_000_000);
     expect(parseAmount('spent ₹1,234.50')).toBe(123450);
+  });
+  it('normalizes common English, Hinglish and Hindi finance wording', () => {
+    expect(normalizeChatText('mera finence status aur crdit card payemnt')).toBe(
+      'mera financial status aur credit card payment',
+    );
+    expect(normalizeChatText('मेरी वर्तमान वित्तीय स्थिति कैसी है')).toBe(
+      'mera current financial status kaisa hai',
+    );
+    expect(normalizeChatText('वेतन 55000 मिला')).toBe('salary 55000 receive');
   });
   it('refuses an unaffordable purchase with exact consequences', () => {
     const reply = chatReply(sampleData('2026-09-14'), 'Can I buy a phone price 50000?');
@@ -77,6 +86,7 @@ describe('MoneyPath conversational finance', () => {
     for (const question of [
       'ky abhi mera current finaceial status sahi hi?',
       'mera finanical status abhi sahi hi ya nehi?',
+      'मेरी वर्तमान वित्तीय स्थिति कैसी है?',
     ]) {
       const reply = chatReply(data, question);
       expect(reply.answer).toContain('recorded position ko attention chahiye');

@@ -20,6 +20,37 @@ export type ChatReply = {
   memory?: ChatMemory;
 };
 
+export function normalizeChatText(message: string) {
+  return message
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\b(finaceial|finanical|finacial|fincial|finence|fainance)\b/g, 'financial')
+    .replace(/\b(salry|sallery|selary|salery)\b/g, 'salary')
+    .replace(/\b(crdit|credt|creadit)\s*(card)?\b/g, 'credit card')
+    .replace(/\b(payemnt|paymant|pament|pyment)\b/g, 'payment')
+    .replace(/\b(expance|expence|exepnse|kharacha|khracha)\b/g, 'expense')
+    .replace(/\b(purches|parchase|puchase)\b/g, 'purchase')
+    .replace(/\b(recive|recived|recieved)\b/g, 'receive')
+    .replace(/\b(borow|borrowd)\b/g, 'borrowed')
+    .replace(
+      /(?:मेरी|मेरा)\s+(?:वर्तमान|अभी की)\s+(?:वित्तीय|आर्थिक)\s+स्थिति/g,
+      'mera current financial status',
+    )
+    .replace(/(?:वित्तीय|आर्थिक)\s+स्थिति/g, 'financial status')
+    .replace(/वेतन|तनख्वाह/g, 'salary')
+    .replace(/क्रेडिट\s*कार्ड/g, 'credit card')
+    .replace(/भुगतान/g, 'payment')
+    .replace(/खर्च|ख़र्च/g, 'expense')
+    .replace(/खरीद(?:ना|ारी)?/g, 'purchase')
+    .replace(/उधार/g, 'borrowed')
+    .replace(/मिला|आया|प्राप्त हुआ/g, 'receive')
+    .replace(/सही|ठीक/g, 'sahi')
+    .replace(/कैस[ाी]/g, 'kaisa')
+    .replace(/है/g, 'hai')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function asksForCurrentStatus(text: string) {
   const financeWord = /financ(?:e|ial)|finanical|finaceial|fincial|money/;
   return (
@@ -98,7 +129,7 @@ function purchaseExplanation(data: Data, amount: number, context: ChatContext, t
 }
 
 export function chatReply(data: Data, message: string, context: ChatContext = {}): ChatReply {
-  const text = message.toLowerCase().trim(),
+  const text = normalizeChatText(message),
     amount = parseAmount(text),
     summary = calculate(data);
   const account = selectedAccount(data, context, text);
