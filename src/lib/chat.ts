@@ -40,6 +40,7 @@ export function normalizeChatText(message: string) {
     .replace(/वेतन|तनख्वाह/g, 'salary')
     .replace(/क्रेडिट\s*कार्ड/g, 'credit card')
     .replace(/भुगतान/g, 'payment')
+    .replace(/बाकी/g, 'baki')
     .replace(/खर्च|ख़र्च/g, 'expense')
     .replace(/खरीद(?:ना|ारी)?/g, 'purchase')
     .replace(/उधार/g, 'borrowed')
@@ -162,6 +163,37 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
               `${incompleteCards} credit cards ki statement, due date, limit aur interest details Cards page par verify karein.`,
             ]
           : [financialActionPlan(data).actions[0]?.detail ?? 'Keep records current.']),
+      ],
+    };
+  }
+  if (
+    /(credit card|card).*(kitna|how much|baki|baaki|left|due|outstanding|balance)|(?:kitna|how much|baki|baaki|left|due|outstanding).*(credit card|card)/.test(
+      text,
+    )
+  ) {
+    const incompleteCards = data.cards.filter((item) => item.detailsComplete === false).length;
+    const balances = data.cards
+      .map((item) => ({
+        name: item.name,
+        debt:
+          item.outstanding + item.emis.reduce((total, emi) => total + emi.principalRemaining, 0),
+        billed: Math.max(0, item.statementAmount - item.statementPaid),
+      }))
+      .filter((item) => item.debt > 0)
+      .sort((a, b) => b.debt - a.debt);
+    return {
+      answer: `Total recorded credit-card debt ${INR(summary.debt)} hai. Isme currently recorded statement payment ${INR(summary.oldBill)} baki hai.`,
+      details: [
+        `Remaining ${INR(Math.max(0, summary.debt - summary.oldBill))} posted/unbilled debt aur recorded EMI principal hai.`,
+        ...balances.map(
+          (item) =>
+            `${item.name}: total ${INR(item.debt)}${item.billed > 0 ? `; billed payment baki ${INR(item.billed)}` : ''}.`,
+        ),
+        ...(incompleteCards
+          ? [
+              `Confidence: provisional. ${incompleteCards} cards ki latest statement/due details verify hone ke baad exact payable amount update hoga.`,
+            ]
+          : ['Confidence: verified from the latest recorded card details.']),
       ],
     };
   }

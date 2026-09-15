@@ -95,6 +95,22 @@ describe('MoneyPath conversational finance', () => {
       expect(reply.details.join(' ')).not.toContain('Axis 1: review');
     }
   });
+  it('answers card balance questions with totals, card breakdown and confidence', () => {
+    const data = sampleData('2026-09-14');
+    data.cards = data.cards.map((card) => ({ ...card, detailsComplete: false }));
+    for (const question of [
+      'kitna credit card payment baki hi?',
+      'How much credit card payment is left?',
+      'क्रेडिट कार्ड का कितना भुगतान बाकी है?',
+    ]) {
+      const reply = chatReply(data, question);
+      expect(reply.answer).toContain('Total recorded credit-card debt');
+      expect(reply.answer).toContain('statement payment');
+      expect(reply.details).toEqual(expect.arrayContaining([expect.stringContaining('SBI')]));
+      expect(reply.details.at(-1)).toContain('Confidence: provisional');
+      expect(reply.answer).not.toContain('I understood this as');
+    }
+  });
   it('requires confirmation for emergency expense and supports cancellation without a draft', () => {
     const data = sampleData('2026-09-14'),
       reply = chatReply(data, 'emergency medical expense 8000 hua', {
