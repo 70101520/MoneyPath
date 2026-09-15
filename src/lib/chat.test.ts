@@ -47,6 +47,18 @@ describe('MoneyPath conversational finance', () => {
     expect(reply.answer).toContain('do not recommend');
     expect(reply.draft).toMatchObject({ kind: 'cashAdvance', amount: 500000 });
   });
+  it('understands an account deposit from amount, bank token and action', () => {
+    const data = sampleData('2026-09-14');
+    const reply = chatReply(data, '2000 hdfc me saving me add karo');
+    expect(reply.draft).toMatchObject({
+      kind: 'income',
+      amount: 200000,
+      accountId: 'bank-1',
+      source: 'Other Income',
+    });
+    expect(reply.confirmation).toContain('HDFC');
+    expect(reply.details.join(' ')).toContain('transfer ko income count karna galat hoga');
+  });
   it('prepares card purchases and payments without treating payment as an expense', () => {
     const data = sampleData('2026-09-14'),
       context = { accountId: data.accounts[0].id, cardId: data.cards[0].id };

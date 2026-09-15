@@ -80,8 +80,15 @@ export function parseAmount(message: string) {
 }
 
 function selectedAccount(data: Data, context: ChatContext, text: string) {
+  const normalized = text.toLowerCase();
   return (
-    data.accounts.find((item) => text.toLowerCase().includes(item.name.toLowerCase())) ??
+    data.accounts.find((item) => normalized.includes(item.name.toLowerCase())) ??
+    data.accounts.find((item) =>
+      item.name
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .some((token) => token.length >= 3 && normalized.includes(token)),
+    ) ??
     data.accounts.find((item) => item.id === context.accountId) ??
     data.accounts.find((item) => item.spendable)
   );
@@ -308,6 +315,31 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
         notes: 'Recorded from MoneyPath chat',
       },
       confirmation: `Record ${INR(amount)} salary in ${account.name}?`,
+    };
+  }
+  if (
+    amount &&
+    account &&
+    /(add|deposit|jama|credit|saving|save)/.test(text) &&
+    !/(expense|payment|card|borrow|udhar|salary|transfer)/.test(text)
+  ) {
+    return {
+      answer: `${INR(amount)} ${account.name} me add karne ka request samjha hai. Source mention nahi hai, isliye ise Other Income ke roop me confirmation ke liye prepare kiya hai.`,
+      details: [
+        `Confirm karne par ${account.name} balance ${INR(amount)} increase hoga.`,
+        'Agar yeh aapke dusre account ya cash se transfer hai, Cancel karein aur source likhein; transfer ko income count karna galat hoga.',
+      ],
+      draft: {
+        kind: 'income',
+        amount,
+        date: today(),
+        source: 'Other Income',
+        recurring: false,
+        status: 'RECEIVED',
+        accountId: account.id,
+        notes: 'Unclassified deposit recorded from MoneyPath chat',
+      },
+      confirmation: `Add ${INR(amount)} to ${account.name} as Other Income?`,
     };
   }
   if (
@@ -566,12 +598,18 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
       confirmation: `Record this ${INR(amount)} expense from ${account.name}?`,
     };
   }
-  const plan = financialActionPlan(data);
+  if (amount && account)
+    return {
+      answer: `${INR(amount)} aur ${account.name} samajh aaya, lekin paisa account me aa raha hai ya account se ja raha hai yeh clear nahi hai.`,
+      details: [
+        'Natural language me source/action add karein, jaise “salary aayi”, “cash deposit”, “SBI se transfer”, ya “expense hua”.',
+        'MoneyPath direction guess karke balance ya income ko galat nahi karega.',
+      ],
+    };
   return {
-    answer:
-      'I understood this as a request for your current plan. For recording, include the amount and words such as salary credited, expense, borrowed from friend, or card cash advance.',
-    details: plan.actions
-      .slice(0, 3)
-      .map((action) => `${action.level}: ${action.title} — ${action.detail}`),
+    answer: 'Main is message ka exact financial action confidently identify nahi kar paya.',
+    details: [
+      'Natural language me amount, account/card aur paisa aaya ya gaya likhein; MoneyPath relevant record ya answer prepare karega.',
+    ],
   };
 }
