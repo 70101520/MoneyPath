@@ -9,7 +9,8 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')(
   () => {
     let db: typeof import('./db').db,
       execute: typeof import('./service').execute,
-      readData: typeof import('./service').readData;
+      readData: typeof import('./service').readData,
+      undoLatestAssistantAction: typeof import('./service').undoLatestAssistantAction;
     let userId = '',
       accountId = '';
     const run = (c: Command) => execute(userId, randomUUID(), c);
@@ -23,7 +24,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')(
       )
         throw new Error('Refusing non-test database');
       ({ db } = await import('./db'));
-      ({ execute, readData } = await import('./service'));
+      ({ execute, readData, undoLatestAssistantAction } = await import('./service'));
       userId = (
         await db.user.create({
           data: {
@@ -141,6 +142,39 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')(
       expect(data.accounts[0].balance).toBe(1015000);
       expect(data.personalEntries).toHaveLength(2);
       expect(data.incomes).toHaveLength(0);
+    });
+    it('audits a confirmed assistant write and safely undoes it', async () => {
+      const before = (await readData(userId)).accounts[0].balance;
+      await execute(
+        userId,
+        randomUUID(),
+        {
+          kind: 'expense',
+          amount: 1000,
+          date: today(),
+          category: 'Fuel',
+          method: 'UPI',
+          essentiality: 'MUST HAVE',
+          accountId,
+        },
+        {
+          source: 'FINANCE_ASSISTANT',
+          conversationMessageId: 'test-message-12345',
+          confirmedByUser: true,
+        },
+      );
+      const audit = await db.audit.findFirstOrThrow({
+        where: { userId, source: 'FINANCE_ASSISTANT' },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(audit.confirmedByUser).toBe(true);
+      expect(audit.conversationMessageId).toBe('test-message-12345');
+      expect(audit.interpretation).not.toContain('Fuel');
+      await undoLatestAssistantAction(userId);
+      expect((await readData(userId)).accounts[0].balance).toBe(before);
+      expect(
+        (await db.audit.findUniqueOrThrow({ where: { id: audit.id } })).undoneAt,
+      ).not.toBeNull();
     });
   },
 );

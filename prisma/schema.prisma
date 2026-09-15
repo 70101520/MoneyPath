@@ -373,6 +373,11 @@ model Audit {
   requestHash String?
   action String
   entityId String
+  source String @default("PORTAL")
+  conversationMessageId String?
+  interpretation String?
+  confirmedByUser Boolean @default(false)
+  undoneAt DateTime?
   createdAt DateTime @default(now())
 }
 model RiskSnapshot {

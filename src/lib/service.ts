@@ -112,7 +112,17 @@ export async function readData(userId: string, tx: Tx = db): Promise<Data> {
     }),
   );
 }
-export async function execute(userId: string, requestId: string, command: Command) {
+export type ExecutionMetadata = {
+  source?: 'PORTAL' | 'FINANCE_ASSISTANT';
+  conversationMessageId?: string;
+  confirmedByUser?: boolean;
+};
+export async function execute(
+  userId: string,
+  requestId: string,
+  command: Command,
+  metadata: ExecutionMetadata = {},
+) {
   const requestHash = tokenHash(JSON.stringify(command));
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -809,7 +819,18 @@ export async function execute(userId: string, requestId: string, command: Comman
             }
           }
           await tx.audit.create({
-            data: { userId, requestId, requestHash, action: c.kind, entityId },
+            data: {
+              userId,
+              requestId,
+              requestHash,
+              action: c.kind,
+              entityId,
+              source: metadata.source ?? 'PORTAL',
+              conversationMessageId: metadata.conversationMessageId,
+              interpretation:
+                metadata.source === 'FINANCE_ASSISTANT' ? encrypt(JSON.stringify(command)) : null,
+              confirmedByUser: metadata.confirmedByUser ?? false,
+            },
           });
           const updatedData = await readData(userId, tx);
           const result = calculate(updatedData);
@@ -846,4 +867,91 @@ export async function execute(userId: string, requestId: string, command: Comman
       throw error;
     }
   }
+}
+
+export async function undoLatestAssistantAction(userId: string) {
+  return db.$transaction(async (tx) => {
+    const audit = await tx.audit.findFirst({
+      where: {
+        userId,
+        source: 'FINANCE_ASSISTANT',
+        confirmedByUser: true,
+        undoneAt: null,
+        action: { in: ['income', 'expense', 'cashAdvance', 'personalTransfer'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!audit) throw new Error('No recent safely reversible Finance Assistant entry found');
+    if (audit.action === 'income') {
+      const row = await tx.income.findFirstOrThrow({ where: { id: audit.entityId, userId } });
+      if (row.status === 'RECEIVED' && row.accountId) {
+        const target = await tx.account.findFirstOrThrow({ where: { id: row.accountId, userId } });
+        if (target.balance < row.amount)
+          throw new Error('Undo is unsafe because the credited money is no longer available');
+        await tx.account.update({
+          where: { id: target.id },
+          data: { balance: { decrement: row.amount } },
+        });
+      }
+      await tx.salaryPlan.deleteMany({ where: { incomeId: row.id } });
+      await tx.income.delete({ where: { id: row.id } });
+    } else if (audit.action === 'expense') {
+      const row = await tx.expense.findFirstOrThrow({ where: { id: audit.entityId, userId } });
+      if (row.accountId)
+        await tx.account.update({
+          where: { id: row.accountId },
+          data: { balance: { increment: row.amount } },
+        });
+      else if (row.cardId) {
+        const target = await tx.card.findFirstOrThrow({ where: { id: row.cardId, userId } });
+        if (target.outstanding < row.amount)
+          throw new Error('Undo is unsafe after later card reconciliation');
+        await tx.card.update({
+          where: { id: row.cardId },
+          data: { outstanding: { decrement: row.amount }, availableLimit: null },
+        });
+      }
+      await tx.expense.delete({ where: { id: row.id } });
+    } else if (audit.action === 'cashAdvance') {
+      const row = await tx.cashAdvance.findFirstOrThrow({ where: { id: audit.entityId, userId } });
+      const account = await tx.account.findFirstOrThrow({ where: { id: row.accountId, userId } });
+      const card = await tx.card.findFirstOrThrow({ where: { id: row.cardId, userId } });
+      if (account.balance < row.amount || card.outstanding < row.amount)
+        throw new Error('Undo is unsafe after later cash or card changes');
+      await tx.account.update({
+        where: { id: account.id },
+        data: { balance: { decrement: row.amount } },
+      });
+      await tx.card.update({
+        where: { id: card.id },
+        data: { outstanding: { decrement: row.amount }, availableLimit: null },
+      });
+      await tx.cashAdvance.delete({ where: { id: row.id } });
+    } else {
+      const advance = await tx.personalAdvance.findFirstOrThrow({
+        where: { id: audit.entityId, userId },
+        include: { entry: true },
+      });
+      const account = await tx.account.findFirstOrThrow({
+        where: { id: advance.accountId, userId },
+      });
+      if (advance.entry.direction === 'PAYABLE') {
+        if (account.balance < advance.amount)
+          throw new Error('Undo is unsafe because the borrowed money is no longer available');
+        await tx.account.update({
+          where: { id: account.id },
+          data: { balance: { decrement: advance.amount } },
+        });
+      } else
+        await tx.account.update({
+          where: { id: account.id },
+          data: { balance: { increment: advance.amount } },
+        });
+      await tx.personalAdvance.delete({ where: { id: advance.id } });
+      await tx.personalEntry.delete({ where: { id: advance.entryId } });
+    }
+    await tx.audit.update({ where: { id: audit.id }, data: { undoneAt: new Date() } });
+    const result = calculate(await readData(userId, tx));
+    return { action: audit.action, safeToSpend: result.safe.available, risk: result.risk };
+  });
 }

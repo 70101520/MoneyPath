@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { chatReply, type ChatReply } from '@/lib/chat';
-import { INR, type Data } from '@/lib/finance';
+import { chatReply, type ChatMemory, type ChatReply } from '@/lib/chat';
+import { calculate, INR, type Data } from '@/lib/finance';
+import { paymentPriority } from '@/lib/decision';
 import { requestId } from '@/lib/request-id';
 
 type Message = {
@@ -10,8 +11,11 @@ type Message = {
   details?: string[];
   draft?: ChatReply['draft'];
   confirmation?: string;
+  userMessageId?: string;
 };
 export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: boolean }) {
+  const snapshot = calculate(data),
+    nextPayment = paymentPriority(data).ranked[0];
   const [messages, setMessages] = useState<Message[]>([
       {
         role: 'ASSISTANT',
@@ -22,6 +26,7 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
     [input, setInput] = useState(''),
     [accountId, setAccountId] = useState(data.accounts.find((a) => a.spendable)?.id ?? ''),
     [cardId, setCardId] = useState(''),
+    [memory, setMemory] = useState<ChatMemory>(),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     if (demo) return;
@@ -51,7 +56,8 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
     setBusy(true);
     try {
       let reply: ChatReply;
-      if (demo) reply = chatReply(data, message, { accountId, cardId });
+      let userMessageId: string | undefined;
+      if (demo) reply = chatReply(data, message, { accountId, cardId, memory });
       else {
         const response = await fetch('/api/chat', {
             method: 'POST',
@@ -65,7 +71,9 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
           body = await response.json();
         if (!response.ok) throw new Error(body.error);
         reply = body;
+        userMessageId = body.userMessageId;
       }
+      setMemory(reply.memory);
       setMessages((rows) => [
         ...rows,
         {
@@ -74,6 +82,7 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
           details: reply.details,
           draft: reply.draft,
           confirmation: reply.confirmation,
+          userMessageId,
         },
       ]);
     } catch (error) {
@@ -88,13 +97,18 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
       setBusy(false);
     }
   }
-  async function confirm(index: number, draft: ChatReply['draft']) {
+  async function confirm(index: number, draft: ChatReply['draft'], userMessageId?: string) {
     if (!draft || demo) return;
     setBusy(true);
     try {
       const response = await fetch('/api/records', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestId() },
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': requestId(),
+            'X-MoneyPath-Source': 'FINANCE_ASSISTANT',
+            ...(userMessageId ? { 'X-MoneyPath-Message': userMessageId } : {}),
+          },
           body: JSON.stringify(draft),
         }),
         body = await response.json();
@@ -118,10 +132,33 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
       setBusy(false);
     }
   }
+  async function undo() {
+    if (demo) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/chat/undo', { method: 'POST' }),
+        body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setMessages((rows) => [
+        ...rows,
+        {
+          role: 'ASSISTANT',
+          content: `Most recent safe ${body.action} entry undo ho gayi. Financial plan recalculate kiya gaya hai.`,
+        },
+      ]);
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      setMessages((rows) => [
+        ...rows,
+        { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Unable to undo.' },
+      ]);
+      setBusy(false);
+    }
+  }
   return (
     <div className="planning">
       <section className="panel planning-insights">
-        <h2>Chat with MoneyPath</h2>
+        <h2>Ask MoneyPath</h2>
         <p>
           I use your recorded data. I show a confirmation before any financial entry is saved, and I
           never silently assume missing amounts, accounts, fees or due dates.
@@ -150,6 +187,53 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
             </select>
           </label>
         </div>
+        <div className="chat-status-grid">
+          <div>
+            <small>Safe to Spend</small>
+            <strong>
+              {snapshot.safe.available === null
+                ? 'Information Required'
+                : INR(snapshot.safe.available)}
+            </strong>
+          </div>
+          <div>
+            <small>Next Payment</small>
+            <strong>
+              {nextPayment ? `${nextPayment.name} · ${INR(nextPayment.amount)}` : 'None recorded'}
+            </strong>
+          </div>
+          <div>
+            <small>Credit Card Debt</small>
+            <strong>{INR(snapshot.debt)}</strong>
+          </div>
+          <div>
+            <small>Financial Risk</small>
+            <strong>
+              {snapshot.risk.score === null ? 'Information Required' : `${snapshot.risk.score}/100`}
+            </strong>
+          </div>
+        </div>
+        <div className="chat-quick-actions">
+          {[
+            'Abhi mujhe kya karna chahiye?',
+            'Can I buy this?',
+            'Abhi kis kis ko payment karna hai?',
+            'Mere paas kitna paisa kharch karne ke liye hai?',
+            'Mera risk high kyu hai?',
+            'Marriage plan batao',
+            'Aaj expense record karna hai',
+            'Aaj salary record karna hai',
+          ].map((label) => (
+            <button
+              type="button"
+              className="button secondary"
+              key={label}
+              onClick={() => setInput(label)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </section>
       <section className="panel planning-insights chat-panel">
         <div className="chat-messages" aria-live="polite">
@@ -168,9 +252,36 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
                   <button
                     className="button primary"
                     disabled={busy || demo}
-                    onClick={() => confirm(index, message.draft)}
+                    onClick={() => confirm(index, message.draft, message.userMessageId)}
                   >
                     Confirm and save
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={busy}
+                    onClick={() => setInput(messages[index - 1]?.content ?? '')}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      setMessages((rows) =>
+                        rows.map((row, rowIndex) =>
+                          rowIndex === index
+                            ? {
+                                ...row,
+                                draft: undefined,
+                                confirmation: undefined,
+                                content: 'Cancelled. No record was changed.',
+                              }
+                            : row,
+                        ),
+                      )
+                    }
+                  >
+                    Cancel
                   </button>
                 </div>
               )}
@@ -192,6 +303,11 @@ export function FinanceAssistant({ data, demo = false }: { data: Data; demo?: bo
             {busy ? 'Checking…' : 'Send'}
           </button>
         </form>
+        {!demo && (
+          <button type="button" className="button secondary" disabled={busy} onClick={undo}>
+            Undo most recent safe chat entry
+          </button>
+        )}
       </section>
     </div>
   );

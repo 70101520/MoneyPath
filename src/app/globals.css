@@ -43,6 +43,31 @@
 .chat-form textarea {
   min-height: 5rem;
 }
+.chat-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.chat-status-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface-soft);
+}
+.chat-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+@media (max-width: 760px) {
+  .chat-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 @media (max-width: 640px) {
   .chat-message {
     max-width: 96%;

@@ -40,19 +40,38 @@ export async function POST(request: Request) {
           cardId: z.string().max(100).optional(),
         })
         .parse(await request.json()),
-      data = await readData(user.id),
-      reply = chatReply(data, body.message, { accountId: body.accountId, cardId: body.cardId });
-    await db.chatMessage.createMany({
-      data: [
-        { userId: user.id, role: 'USER', content: encrypt(body.message)! },
-        {
-          userId: user.id,
-          role: 'ASSISTANT',
-          content: encrypt(JSON.stringify({ answer: reply.answer, details: reply.details }))!,
-        },
-      ],
+      previous = await db.chatMessage.findFirst({
+        where: { userId: user.id, role: 'ASSISTANT' },
+        orderBy: { createdAt: 'desc' },
+      });
+    let memory;
+    if (previous) {
+      try {
+        memory = JSON.parse(decrypt(previous.content)!).memory;
+      } catch {}
+    }
+    const data = await readData(user.id),
+      userMessage = await db.chatMessage.create({
+        data: { userId: user.id, role: 'USER', content: encrypt(body.message)! },
+      }),
+      reply = chatReply(data, body.message, {
+        accountId: body.accountId,
+        cardId: body.cardId,
+        memory,
+      });
+    await db.chatMessage.create({
+      data: {
+        userId: user.id,
+        role: 'ASSISTANT',
+        content: encrypt(
+          JSON.stringify({ answer: reply.answer, details: reply.details, memory: reply.memory }),
+        )!,
+      },
     });
-    return NextResponse.json(reply, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(
+      { ...reply, userMessageId: userMessage.id },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     if (error instanceof z.ZodError)
       return NextResponse.json({ error: error.issues[0].message }, { status: 400 });

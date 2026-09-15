@@ -1,14 +1,23 @@
 import { calculate, INR, today, type Data } from './finance';
 import { financialActionPlan, emergencyAdjustment } from './guidance';
-import { paymentPriority } from './decision';
+import { paymentPriority, salaryAllocation, simulatePurchase } from './decision';
+import { spendingReport } from './planning';
+import { goalSummary } from './goals';
 import type { Command } from './validation';
 
-export type ChatContext = { accountId?: string; cardId?: string };
+export type ChatMemory = {
+  intent?: 'PURCHASE';
+  item?: string;
+  amount?: number;
+  method?: 'CASH' | 'CARD';
+};
+export type ChatContext = { accountId?: string; cardId?: string; memory?: ChatMemory };
 export type ChatReply = {
   answer: string;
   details: string[];
   draft?: Command;
   confirmation?: string;
+  memory?: ChatMemory;
 };
 
 export function parseAmount(message: string) {
@@ -30,13 +39,169 @@ export function parseAmount(message: string) {
   return Number.isSafeInteger(paise) && paise > 0 && paise <= 1_000_000_000 ? paise : null;
 }
 
+function selectedAccount(data: Data, context: ChatContext, text: string) {
+  return (
+    data.accounts.find((item) => text.toLowerCase().includes(item.name.toLowerCase())) ??
+    data.accounts.find((item) => item.id === context.accountId) ??
+    data.accounts.find((item) => item.spendable)
+  );
+}
+
+function selectedCard(data: Data, context: ChatContext, text: string) {
+  return (
+    data.cards.find((item) =>
+      [item.name, item.bank].some((name) => text.toLowerCase().includes(name.toLowerCase())),
+    ) ?? data.cards.find((item) => item.id === context.cardId)
+  );
+}
+
+function purchaseExplanation(data: Data, amount: number, context: ChatContext, text: string) {
+  const account = selectedAccount(data, context, text);
+  const card = selectedCard(data, context, text);
+  const method: 'CASH' | 'CARD' = /card se|credit card/.test(text)
+    ? 'CARD'
+    : (context.memory?.method ?? 'CASH');
+  const item = /mobile|phone/.test(text) ? 'Mobile' : (context.memory?.item ?? 'Purchase');
+  if (method === 'CASH' && !account)
+    return { answer: 'Cash purchase check ke liye spendable account select karein.', details: [] };
+  if (method === 'CARD' && !card)
+    return { answer: 'Card purchase check ke liye credit card select karein.', details: [] };
+  const result = simulatePurchase(data, {
+    item,
+    price: amount,
+    method,
+    essentiality: /medical|school|essential|zaruri/.test(text) ? 'MUST HAVE' : 'WANT',
+    accountId: account?.id,
+    cardId: card?.id,
+  });
+  return {
+    answer: `${result.level >= 3 ? 'No.' : result.level === 2 ? 'Caution.' : 'Yes.'} ${result.label}. ${amount > (result.before.safe.available ?? 0) ? 'Abhi recommended nahi hai.' : result.level >= 3 ? 'Abhi avoid karna better hai.' : 'Recorded plan me fit hota hai.'}`,
+    details: [
+      `Current cash: ${INR(result.before.cash)}.`,
+      `Upcoming obligations and reserves: ${INR(result.before.cash - (result.before.safe.raw ?? 0))}.`,
+      `Current safe-to-spend: ${result.before.safe.available === null ? 'Information Required' : INR(result.before.safe.available)}.`,
+      ...(result.after
+        ? [`Purchase ke baad safe-to-spend: ${INR(result.after.safe.available ?? 0)}.`]
+        : []),
+      ...result.reasons.slice(0, 4),
+    ],
+    memory: { intent: 'PURCHASE' as const, item, amount, method },
+  };
+}
+
 export function chatReply(data: Data, message: string, context: ChatContext = {}): ChatReply {
   const text = message.toLowerCase().trim(),
     amount = parseAmount(text),
     summary = calculate(data);
-  const account = data.accounts.find((item) => item.id === context.accountId);
-  const card = data.cards.find((item) => item.id === context.cardId);
+  const account = selectedAccount(data, context, text);
+  const card = selectedCard(data, context, text);
   if (!text) return { answer: 'Please write your question or transaction.', details: [] };
+  if (/(cancel|rehne do|mat save|nahi save)/.test(text))
+    return {
+      answer: 'Theek hai, proposed entry cancel kar di. Koi financial record change nahi hua.',
+      details: [],
+    };
+  if (/(current status|mera status|money status|financial status)/.test(text)) {
+    const report = spendingReport(data, summary.asOf.slice(0, 7));
+    const next = summary.obligations.find((item) => item.amount > 0);
+    return {
+      answer: `${data.settings.name || 'Balaram'}, aapka current MoneyPath status database ke recorded data par based hai.`,
+      details: [
+        `Bank/cash: ${INR(summary.cash)}; safe-to-spend: ${summary.safe.available === null ? 'Information Required' : INR(summary.safe.available)}.`,
+        `Credit-card debt: ${INR(summary.debt)}; other debt: ${INR(summary.privateDebt)}.`,
+        `Next salary horizon: ${summary.horizon ?? 'Information Required'}${next ? `; next payment ${next.name} ${INR(next.amount)} due ${next.date}` : ''}.`,
+        `This month spent: ${INR(report.total)} (essential ${INR(report.essential)}, flexible ${INR(report.flexible)}, wants ${INR(report.wants)}).`,
+        `Risk: ${summary.risk.score === null ? 'Information Required' : `${summary.risk.score}/100 ${summary.risk.label}`}.`,
+        financialActionPlan(data).actions[0]?.detail ?? 'Keep records current.',
+      ],
+    };
+  }
+  if (/(risk).*(kyu|why|explain)|(?:kyu|why).*(risk)/.test(text))
+    return {
+      answer:
+        summary.risk.score === null
+          ? 'Risk explain karne ke liye required financial setup complete nahi hai.'
+          : `Recorded risk ${summary.risk.score}/100 (${summary.risk.label}) hai.`,
+      details:
+        summary.risk.score === null
+          ? summary.required.map((item) => `Complete: ${item}`)
+          : summary.risk.rules.map(
+              (rule) => `${rule.points >= 0 ? '+' : ''}${rule.points}: ${rule.reason}`,
+            ),
+    };
+  if (/(kis|kaun).*(card|payment).*(pehle|first)|abhi kis kis ko payment/.test(text)) {
+    const rows = paymentPriority(data).ranked.slice(0, 5);
+    return {
+      answer: rows.length
+        ? 'Actual due dates, risk aur protected cash ke hisab se priority:'
+        : 'Koi recorded payment priority nahi mili.',
+      details: rows.map(
+        (item, index) =>
+          `${index + 1}. ${item.action}: ${item.name} ${INR(item.amount)}, due ${item.date}. ${item.reasons.slice(0, 2).join('; ')}.`,
+      ),
+    };
+  }
+  if (/(maximum|max|kitne ka).*(mobile|phone|purchase|le sakta)/.test(text)) {
+    if (summary.safe.available === null)
+      return {
+        answer: 'Safe purchase ceiling calculate nahi ho sakti.',
+        details: summary.required,
+      };
+    const ceiling = Math.max(0, Math.floor(summary.safe.available / 10000) * 10000);
+    return {
+      answer: `Current safe cash purchase ceiling ${INR(ceiling)} hai.`,
+      details: [
+        `Yeh available card limit par based nahi hai. Current safe-to-spend ${INR(summary.safe.available)} hai.`,
+        'Thoda buffer rakhne ke liye exact ceiling se kam spend karna safer hai.',
+      ],
+    };
+  }
+  if (/(sip|gold saving|investment).*(continue|pause|start|karu)/.test(text)) {
+    const optional = (data.investments ?? []).reduce(
+      (sum, item) => sum + item.monthlyContribution,
+      0,
+    );
+    const stressed = !!summary.safe.shortfall || summary.debt > 0;
+    return {
+      answer: stressed
+        ? 'Optional investment contribution ko abhi review/pause karna reasonable hai; insurance ko is answer me stop nahi maana gaya.'
+        : 'Recorded cash flow me contribution continue karne ki capacity dikh rahi hai.',
+      details: [
+        `Optional monthly investment contributions: ${INR(optional)}.`,
+        `Safe-to-spend: ${summary.safe.available === null ? 'Information Required' : INR(summary.safe.available)}; card debt: ${INR(summary.debt)}.`,
+        'Product exit charge, lock-in aur tax conditions MoneyPath me recorded nahi hain; change se pehle verify karein.',
+      ],
+    };
+  }
+  if (/(salary).*(plan|kya karu|allocate)/.test(text)) {
+    const plan = salaryAllocation(data);
+    return {
+      answer: 'Aapka salary plan recorded obligations aur reserves se calculate hua hai.',
+      details: [
+        ...plan.groups.map((group) => `${group.category}: ${INR(group.amount)}`),
+        `Mandatory total: ${INR(plan.mandatory)}; essential reserve: ${INR(data.settings.essentialReserve ?? 0)}; emergency reserve: ${INR(data.settings.emergencyReserve ?? 0)}.`,
+        `Safe-to-spend until next salary: ${plan.safe.available === null ? 'Information Required' : INR(plan.safe.available)}.`,
+      ],
+    };
+  }
+  if (/(marriage|shaadi).*(plan|status|save|kitna)/.test(text)) {
+    const goal = (data.goals ?? []).find((item) => item.kind === 'MARRIAGE');
+    if (!goal)
+      return {
+        answer:
+          'Marriage goal abhi recorded nahi hai. Goals page par target date aur amounts add karein.',
+        details: [],
+      };
+    const result = goalSummary(goal, summary.asOf);
+    return {
+      answer: `${goal.name} ke liye confirmed shortfall ${INR(result.shortfall)} hai.`,
+      details: [
+        `Target ${INR(result.total)} by ${goal.targetDate}; confirmed ${INR(result.confirmed)}.`,
+        `Required monthly amount approximately ${INR(result.requiredMonthly)} for ${result.monthsRemaining} month(s).`,
+        `Expected money ${INR(result.expected)} separately shown hai; receive hone tak cash/safe-to-spend me count nahi hai.`,
+      ],
+    };
+  }
   if (/(salary|salry|sallery).*(credit|aaya|aya|mila|receive)/.test(text)) {
     if (!amount)
       return {
@@ -118,18 +283,121 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
       confirmation: `Despite the warning, record ${INR(amount)} cash advance from ${card.name} into ${account.name}?`,
     };
   }
+  if (
+    /(card).*(payment|pay|jama).*(kiya|hua|kar diya)|(?:payment).*(card).*(kiya|hua)/.test(text)
+  ) {
+    if (!amount) return { answer: 'Card payment amount missing hai.', details: [] };
+    if (!card || !account)
+      return {
+        answer: 'Payment record karne ke liye bank account aur credit card select karein.',
+        details: [],
+      };
+    const statementRemaining = Math.max(0, card.statementAmount - card.statementPaid);
+    if (statementRemaining > 0 && amount > statementRemaining)
+      return {
+        answer: 'Is payment ko statement aur unbilled portions me split karke confirm karna hoga.',
+        details: [
+          `Remaining statement ${INR(statementRemaining)} hai. Pehle itna statement payment record karein; remaining ${INR(amount - statementRemaining)} ko separate unbilled payment ke roop me record karein.`,
+          'Is split ke bina MoneyPath silently allocation assume nahi karega.',
+        ],
+      };
+    return {
+      answer: `${INR(amount)} ${card.name} payment ${account.name} se prepare kiya hai.`,
+      details: [
+        `Bank cash ${INR(amount)} reduce hoga aur card liability ${INR(amount)} reduce hogi.`,
+        'Yeh expense nahi hai, isliye spending double count nahi hogi.',
+      ],
+      draft: {
+        kind: 'payment',
+        accountId: account.id,
+        cardId: card.id,
+        amount,
+        date: today(),
+        type: statementRemaining > 0 ? 'STATEMENT' : 'UNBILLED',
+        notes: 'Recorded from MoneyPath Finance Assistant',
+      },
+      confirmation: `Pay ${INR(amount)} to ${card.name} from ${account.name}?`,
+    };
+  }
+  if (
+    /(card se|credit card se).*(purchase|kharid|kharcha|grocery|petrol)|(?:purchase|kharid|grocery).*(card se|credit card)/.test(
+      text,
+    )
+  ) {
+    if (!amount) return { answer: 'Card purchase amount missing hai.', details: [] };
+    if (!card)
+      return { answer: 'Purchase record karne ke liye credit card select karein.', details: [] };
+    const category = /fuel|petrol|diesel/.test(text)
+      ? 'Fuel'
+      : /sabji|ration|grocery/.test(text)
+        ? 'Groceries'
+        : /recharge|mobile/.test(text)
+          ? 'Mobile Recharge'
+          : 'Other';
+    const simulation = simulatePurchase(data, {
+      item: category,
+      price: amount,
+      method: 'CARD',
+      essentiality: category === 'Other' ? 'WANT' : 'MUST HAVE',
+      cardId: card.id,
+    });
+    return {
+      answer: `${INR(amount)} ${category} purchase on ${card.name} prepare kiya hai.`,
+      details: [
+        'Bank balance abhi reduce nahi hoga; expense aur card liability dono update honge.',
+        `Simulation: ${simulation.label}.`,
+        ...simulation.reasons.slice(0, 2),
+      ],
+      draft: {
+        kind: 'expense',
+        amount,
+        date: today(),
+        category,
+        method: 'Credit Card',
+        essentiality: category === 'Other' ? 'WANT' : 'MUST HAVE',
+        cardId: card.id,
+        description: message.slice(0, 100),
+      },
+      confirmation: `Record ${INR(amount)} ${category} expense on ${card.name}?`,
+    };
+  }
   if (/(emergency|urgent|medical).*(expense|kharcha|pay|payment)/.test(text)) {
     if (!amount) return { answer: 'Emergency amount is missing.', details: [] };
     const plan = emergencyAdjustment(data, amount);
-    return { answer: plan.title, details: plan.steps };
+    if (!account)
+      return {
+        answer: `${plan.title}. Expense record karne ke liye account select karein.`,
+        details: plan.steps,
+      };
+    return {
+      answer: plan.title,
+      details: [
+        `Safe-to-spend before expense: ${summary.safe.available === null ? 'Information Required' : INR(summary.safe.available)}.`,
+        ...plan.steps,
+      ],
+      draft: {
+        kind: 'expense',
+        amount,
+        date: today(),
+        category: 'Medical',
+        method: 'UPI',
+        essentiality: 'MUST HAVE',
+        accountId: account.id,
+        description: message.slice(0, 100),
+      },
+      confirmation: `Record ${INR(amount)} emergency expense from ${account.name}?`,
+    };
   }
   if (
     /(purchase|buy|kharid|kharcha|spend).*(karu|kare|possible|can|chahiye|chahta|price)/.test(
       text,
     ) ||
-    /(karu|possible|can).*(purchase|buy|kharid|kharcha)/.test(text)
+    /(karu|possible|can).*(purchase|buy|kharid|kharcha)/.test(text) ||
+    /(mobile|phone).*(le sakta|buy|purchase|kharid)/.test(text) ||
+    (context.memory?.intent === 'PURCHASE' && (!!amount || /card se|cash se/.test(text)))
   ) {
-    if (!amount)
+    const purchaseAmount = amount ?? context.memory?.amount;
+    if (!purchaseAmount)
       return {
         answer: 'Tell me the purchase price. Example: “Can I buy a phone for 25000?”',
         details: [],
@@ -139,30 +407,33 @@ export function chatReply(data: Data, message: string, context: ChatContext = {}
         answer: 'I cannot safely answer yet.',
         details: [`Complete ${summary.required.join(', ')}.`],
       };
-    const remaining = summary.safe.available! - amount,
-      optional = /phone|mobile|shopping|want|optional/.test(text);
-    if (amount > summary.safe.available!)
-      return {
-        answer: `No. Do not make this ${INR(amount)} purchase now.`,
-        details: [
-          `It exceeds safe-to-spend by ${INR(-remaining)}.`,
-          `Cash ${INR(summary.cash)}; protected bills and reserves ${INR(summary.cash - summary.safe.raw!)}.`,
-          `Review Payment priorities before arranging any new borrowing.`,
-        ],
-      };
-    if (optional && summary.debt > 0)
-      return {
-        answer: `No for now. The amount fits cash, but this optional purchase should wait while ${INR(summary.debt)} card debt remains.`,
-        details: [
-          `If purchased, safe-to-spend would fall from ${INR(summary.safe.available!)} to ${INR(remaining)}.`,
-        ],
-      };
+    return purchaseExplanation(data, purchaseAmount, context, text);
+  }
+  if (/(kitna).*(kharch|spend).*(sakta|available)|safe.to.spend/.test(text))
     return {
-      answer: `Yes, this purchase fits the recorded plan.`,
-      details: [
-        `Safe-to-spend after purchase: ${INR(Math.max(0, remaining))}.`,
-        `Recheck if any bill, balance or emergency entry changes.`,
-      ],
+      answer:
+        summary.safe.available === null
+          ? 'Safe-to-spend calculate karne ke liye information incomplete hai.'
+          : `Balaram, abhi ${INR(summary.safe.available)} safely spendable hai.`,
+      details:
+        summary.safe.available === null
+          ? summary.required
+          : [
+              `Account cash ${INR(summary.cash)} me se ${INR(summary.mandatory)} upcoming payments ke liye reserved hai.`,
+              `Essential, emergency, goal aur debt reserves bhi calculation me protected hain.`,
+            ],
+    };
+  if (/(paisa kaha|where).*(jyada|most)|overspend|over budget/.test(text)) {
+    const report = spendingReport(data, summary.asOf.slice(0, 7));
+    const rows = report.rows.filter((row) => row.actual > 0).slice(0, 5);
+    return {
+      answer: rows.length
+        ? 'Is month recorded spending ka breakdown:'
+        : 'Is month koi recorded expense nahi hai.',
+      details: rows.map(
+        (row) =>
+          `${row.category}: ${INR(row.actual)}${row.budget === null ? ' (budget not set)' : ` of ${INR(row.budget)} budget${row.variance?.overBudget ? `; ${INR(row.actual - row.budget)} over` : ''}`}`,
+      ),
     };
   }
   if (/(short|kam|arrange|manage).*(payment|paisa|money)|(?:payment).*(short|kam)/.test(text)) {
