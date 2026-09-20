@@ -61,8 +61,9 @@ function asksForCurrentStatus(text: string) {
 }
 
 export function parseAmount(message: string) {
+  const normalizedMessage = message.replaceAll('₹', 'rs ');
   const matches = [
-    ...message
+    ...normalizedMessage
       .toLowerCase()
       .matchAll(/(?:₹|rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*(k|thousand|lakh|lac)?/g),
   ];

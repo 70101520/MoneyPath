@@ -1,0 +1,348 @@
+import { calculate, INR, type Data } from './finance';
+import { simulatePurchase, paymentPriority } from './decision';
+import { spendingReport } from './planning';
+import { goalSummary } from './goals';
+import { parseAmount, type ChatContext, type ChatReply } from './chat';
+
+type Query = 'snapshot' | 'cash_outflow' | 'cards' | 'priorities' | 'spending' | 'goals';
+type Mutation =
+  | 'none'
+  | 'income'
+  | 'expense'
+  | 'friend_borrowing'
+  | 'card_payment'
+  | 'cash_advance'
+  | 'account_deposit';
+type Plan = {
+  queries: Query[];
+  mutation: Mutation;
+  accountQuery: string;
+  cardQuery: string;
+  needsClarification: string;
+};
+
+const plannerSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['queries', 'mutation', 'accountQuery', 'cardQuery', 'needsClarification'],
+  properties: {
+    queries: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: ['snapshot', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
+      },
+    },
+    mutation: {
+      type: 'string',
+      enum: [
+        'none',
+        'income',
+        'expense',
+        'friend_borrowing',
+        'card_payment',
+        'cash_advance',
+        'account_deposit',
+      ],
+    },
+    accountQuery: { type: 'string' },
+    cardQuery: { type: 'string' },
+    needsClarification: { type: 'string' },
+  },
+} as const;
+const answerSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['answer', 'details'],
+  properties: {
+    answer: { type: 'string' },
+    details: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+  },
+} as const;
+
+async function structuredResponse(
+  name: string,
+  schema: object,
+  instructions: string,
+  input: string,
+) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY is not configured');
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL ?? 'gpt-5.5',
+      store: false,
+      reasoning: { effort: 'medium' },
+      text: { verbosity: 'low', format: { type: 'json_schema', name, strict: true, schema } },
+      instructions,
+      input,
+      max_output_tokens: 1200,
+    }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body?.error?.message ?? 'AI provider request failed');
+  const output =
+    body.output_text ??
+    body.output
+      ?.flatMap((item: any) => item.content ?? [])
+      .find((item: any) => item.type === 'output_text')?.text;
+  if (!output) throw new Error('AI provider returned no structured answer');
+  return JSON.parse(output);
+}
+
+function findNamed<T extends { id: string; name: string }>(
+  rows: T[],
+  query: string,
+  selected?: string,
+) {
+  if (selected) {
+    const exact = rows.find((row) => row.id === selected);
+    if (exact) return exact;
+  }
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
+  return rows.find((row) => words.some((word) => row.name.toLowerCase().includes(word)));
+}
+
+export function extractedAmount(message: string) {
+  const match = message
+    .toLowerCase()
+    .match(/([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/);
+  if (!match) return parseAmount(message);
+  const base = Number(match[1].replaceAll(',', ''));
+  const multiplier =
+    match[2] === 'k' || match[2] === 'thousand'
+      ? 1000
+      : match[2] === 'lakh' || match[2] === 'lac'
+        ? 100000
+        : 1;
+  const paise = Math.round(base * multiplier * 100);
+  return Number.isSafeInteger(paise) && paise > 0 && paise <= 1_000_000_000 ? paise : null;
+}
+
+function deterministicFacts(
+  data: Data,
+  queries: Query[],
+  amount: number | null,
+  context: ChatContext,
+) {
+  const summary = calculate(data),
+    facts: Record<string, unknown> = {
+      asOf: summary.asOf,
+      requestedAmount: amount === null ? null : INR(amount),
+      snapshot: {
+        cash: INR(summary.cash),
+        safeToSpend: summary.safe.available === null ? null : INR(summary.safe.available),
+        shortfall: summary.safe.shortfall === null ? null : INR(summary.safe.shortfall),
+        nextSalary: summary.horizon,
+        cardDebt: INR(summary.debt),
+        privateDebt: INR(summary.privateDebt),
+        mandatoryBeforeSalary: INR(summary.mandatory),
+        risk:
+          summary.risk.score === null ? null : `${summary.risk.score}/100 ${summary.risk.label}`,
+        incompleteDataCount: summary.required.length,
+      },
+    };
+  if (queries.includes('cash_outflow') && amount) {
+    const account =
+      data.accounts.find((row) => row.id === context.accountId) ??
+      data.accounts.find((row) => row.spendable);
+    if (account) {
+      const result = simulatePurchase(data, {
+        item: 'Possible cash outflow',
+        price: amount,
+        method: 'CASH',
+        essentiality: 'WANT',
+        accountId: account.id,
+      });
+      facts.cashOutflow = {
+        amount: INR(amount),
+        decision: result.label,
+        level: result.level,
+        beforeSafe:
+          result.before.safe.available === null ? null : INR(result.before.safe.available),
+        afterSafe:
+          result.after?.safe.available === null || result.after?.safe.available === undefined
+            ? null
+            : INR(result.after.safe.available),
+        reasons: result.reasons,
+      };
+    }
+  }
+  if (queries.includes('cards'))
+    facts.cards = data.cards.map((card) => ({
+      name: card.name,
+      totalDebt: INR(
+        card.outstanding + card.emis.reduce((sum, emi) => sum + emi.principalRemaining, 0),
+      ),
+      billedDue: INR(Math.max(0, card.statementAmount - card.statementPaid)),
+      dueDate: card.dueDate,
+      verified: card.detailsComplete !== false,
+    }));
+  if (queries.includes('priorities'))
+    facts.priorities = paymentPriority(data)
+      .ranked.slice(0, 8)
+      .map((row) => ({
+        name: row.name,
+        amount: INR(row.amount),
+        dueDate: row.date,
+        action: row.action,
+        reasons: row.reasons,
+      }));
+  if (queries.includes('spending')) {
+    const report = spendingReport(data, summary.asOf.slice(0, 7));
+    facts.spending = {
+      total: INR(report.total),
+      essential: INR(report.essential),
+      flexible: INR(report.flexible),
+      wants: INR(report.wants),
+      categories: report.rows.map((row) => ({
+        category: row.category,
+        actual: INR(row.actual),
+        budget: row.budget === null ? null : INR(row.budget),
+      })),
+    };
+  }
+  if (queries.includes('goals'))
+    facts.goals = (data.goals ?? []).map((goal) => {
+      const value = goalSummary(goal, summary.asOf);
+      return {
+        name: goal.name,
+        targetDate: goal.targetDate,
+        target: INR(value.total),
+        confirmed: INR(value.confirmed),
+        expected: INR(value.expected),
+        shortfall: INR(value.shortfall),
+        monthlyRequired: INR(value.requiredMonthly),
+      };
+    });
+  return facts;
+}
+
+function prepareDraft(
+  data: Data,
+  plan: Plan,
+  message: string,
+  context: ChatContext,
+): Pick<ChatReply, 'draft' | 'confirmation'> {
+  const amount = extractedAmount(message);
+  if (plan.mutation === 'none' || !amount || plan.needsClarification) return {};
+  const account = findNamed(data.accounts, plan.accountQuery || message, context.accountId);
+  const card = findNamed(data.cards, plan.cardQuery || message, context.cardId);
+  const base = { amount, date: new Date().toISOString().slice(0, 10) };
+  if ((plan.mutation === 'income' || plan.mutation === 'account_deposit') && account)
+    return {
+      draft: {
+        kind: 'income',
+        ...base,
+        source: plan.mutation === 'income' ? 'Other Income' : 'Other Income',
+        recurring: false,
+        status: 'RECEIVED',
+        accountId: account.id,
+        notes: 'Prepared by AI Finance Assistant',
+      },
+      confirmation: `Add ${INR(amount)} to ${account.name} as Other Income? Confirm only if this is not a transfer.`,
+    };
+  if (plan.mutation === 'expense' && account)
+    return {
+      draft: {
+        kind: 'expense',
+        ...base,
+        category: 'Other',
+        method: 'Bank Transfer',
+        essentiality: 'IMPORTANT/FLEXIBLE',
+        accountId: account.id,
+        description: message.slice(0, 100),
+      },
+      confirmation: `Record ${INR(amount)} expense from ${account.name}?`,
+    };
+  if (plan.mutation === 'friend_borrowing' && account)
+    return {
+      draft: {
+        kind: 'personalTransfer',
+        direction: 'PAYABLE',
+        reference: 'Friend borrowing',
+        accountId: account.id,
+        ...base,
+        dueDate: null,
+        priority: 'NORMAL',
+        notes: 'Prepared by AI Finance Assistant',
+      },
+      confirmation: `Record ${INR(amount)} received as private debt in ${account.name}?`,
+    };
+  if (plan.mutation === 'card_payment' && account && card)
+    return {
+      draft: {
+        kind: 'payment',
+        accountId: account.id,
+        cardId: card.id,
+        ...base,
+        type: card.statementAmount > card.statementPaid ? 'STATEMENT' : 'UNBILLED',
+        notes: 'Prepared by AI Finance Assistant',
+      },
+      confirmation: `Record ${INR(amount)} payment to ${card.name} from ${account.name}?`,
+    };
+  if (plan.mutation === 'cash_advance' && account && card)
+    return {
+      draft: {
+        kind: 'cashAdvance',
+        accountId: account.id,
+        cardId: card.id,
+        ...base,
+        notes: 'Prepared by AI Finance Assistant; fees must be recorded separately',
+      },
+      confirmation: `Record ${INR(amount)} cash advance from ${card.name} into ${account.name}?`,
+    };
+  return {};
+}
+
+export async function financeAgentReply(
+  data: Data,
+  message: string,
+  context: ChatContext = {},
+  history: string[] = [],
+): Promise<ChatReply> {
+  const entityCatalog = {
+    accounts: data.accounts.map((row) => row.name),
+    cards: data.cards.map((row) => row.name),
+    goals: (data.goals ?? []).map((row) => row.name),
+  };
+  const plan = (await structuredResponse(
+    'finance_plan',
+    plannerSchema,
+    'You are the planner for a personal finance assistant. Understand unrestricted Hindi, English, Hinglish and typos. Select every deterministic query needed to answer. cash_outflow is for any hypothetical giving, lending, buying or spending. Use mutation none for advice and hypothetical questions. Select a mutation only when the user clearly says a transaction happened or explicitly asks to record/add it. Never calculate or answer; only plan. If a transfer source is missing, explain it in needsClarification.',
+    JSON.stringify({ recentConversation: history.slice(-8), entityCatalog, userMessage: message }),
+  )) as Plan;
+  const amount = extractedAmount(message);
+  const facts = deterministicFacts(
+    data,
+    [...new Set<Query>(['snapshot', ...plan.queries])],
+    amount,
+    context,
+  );
+  const result = await structuredResponse(
+    'finance_answer',
+    answerSchema,
+    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Reason from the deterministic fact packet only. Never invent, recompute or modify a number. Explain a clear yes/no/caution when asked. Mention uncertainty only when relevant. Advice never saves data. If clarification is present, ask it precisely. Do not mention regex, handlers, JSON, tools or implementation.',
+    JSON.stringify({
+      recentConversation: history.slice(-8),
+      userMessage: message,
+      deterministicFacts: facts,
+      clarification: plan.needsClarification,
+    }),
+  );
+  return {
+    answer: result.answer,
+    details: result.details,
+    ...prepareDraft(data, plan, message, context),
+  };
+}
+
+export function aiFinanceConfigured() {
+  return Boolean(process.env.OPENAI_API_KEY);
+}

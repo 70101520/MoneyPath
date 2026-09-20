@@ -5,6 +5,7 @@ import { checkOrigin, decrypt, encrypt } from '@/lib/security';
 import { db } from '@/lib/db';
 import { readData } from '@/lib/service';
 import { chatReply } from '@/lib/chat';
+import { aiFinanceConfigured, financeAgentReply } from '@/lib/finance-agent';
 
 export async function GET() {
   const user = await currentUser();
@@ -40,11 +41,13 @@ export async function POST(request: Request) {
           cardId: z.string().max(100).optional(),
         })
         .parse(await request.json()),
-      previous = await db.chatMessage.findFirst({
-        where: { userId: user.id, role: 'ASSISTANT' },
+      recent = await db.chatMessage.findMany({
+        where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
+        take: 12,
       });
     let memory;
+    const previous = recent.find((row) => row.role === 'ASSISTANT');
     if (previous) {
       try {
         memory = JSON.parse(decrypt(previous.content)!).memory;
@@ -54,11 +57,13 @@ export async function POST(request: Request) {
       userMessage = await db.chatMessage.create({
         data: { userId: user.id, role: 'USER', content: encrypt(body.message)! },
       }),
-      reply = chatReply(data, body.message, {
-        accountId: body.accountId,
-        cardId: body.cardId,
-        memory,
-      });
+      context = { accountId: body.accountId, cardId: body.cardId, memory },
+      history = recent
+        .reverse()
+        .map((row) => `${row.role === 'USER' ? 'User' : 'MoneyPath'}: ${decrypt(row.content)}`),
+      reply = aiFinanceConfigured()
+        ? await financeAgentReply(data, body.message, context, history)
+        : chatReply(data, body.message, context);
     await db.chatMessage.create({
       data: {
         userId: user.id,

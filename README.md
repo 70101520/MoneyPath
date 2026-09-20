@@ -6,7 +6,7 @@ Read [the architecture, ER diagram, calculation rules and phased roadmap](docs/A
 
 Phases 1–4 are implemented. See [Phase 3 usage and calculation rules](docs/PHASE3.md) and [Phase 4 integrations and provider configuration](docs/PHASE4.md).
 
-The dashboard and Finance assistant provide a dynamic “what should I do now?” sequence and emergency-adjustment order. See [the personal money-management workflow](docs/PERSONAL_WORKFLOW.md).
+The dashboard and Finance Assistant provide deterministic planning calculations plus a general-reasoning conversation layer. See [the Finance Agent architecture](docs/FINANCE_AGENT.md) and [the personal money-management workflow](docs/PERSONAL_WORKFLOW.md).
 
 ## Start with Docker
 

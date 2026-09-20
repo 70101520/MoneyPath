@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:integration": "node scripts/integration.mjs",
+    "eval:finance-agent": "tsx scripts/eval-finance-agent.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",

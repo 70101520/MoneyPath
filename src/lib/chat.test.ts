@@ -6,6 +6,7 @@ describe('MoneyPath conversational finance', () => {
   it('understands common Indian amount forms', () => {
     expect(parseAmount('price 25k')).toBe(2_500_000);
     expect(parseAmount('borrow 2 lakh')).toBe(20_000_000);
+    expect(parseAmount('friend ₹2000 maang raha hai')).toBe(200000);
     expect(parseAmount('spent ₹1,234.50')).toBe(123450);
   });
   it('normalizes common English, Hinglish and Hindi finance wording', () => {
