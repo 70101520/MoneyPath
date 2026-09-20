@@ -38,9 +38,10 @@ const cases = [
   ['Meri baat galat typed ho sakti h: frnd ko 2k du kya?', false],
 ] as const;
 
-const data = sampleData('2026-09-20');
-const results = [];
-for (const [question, expectsDraft] of cases) {
+async function main() {
+  const data = sampleData('2026-09-20');
+  const results = [];
+  for (const [question, expectsDraft] of cases) {
   const started = Date.now();
   try {
     const reply = await financeAgentReply(data, question, {
@@ -66,10 +67,10 @@ for (const [question, expectsDraft] of cases) {
       error: error instanceof Error ? error.message : String(error),
     });
   }
-}
-mkdirSync('artifacts', { recursive: true });
-const passed = results.filter((row) => row.passed).length;
-writeFileSync(
+  }
+  mkdirSync('artifacts', { recursive: true });
+  const passed = results.filter((row) => row.passed).length;
+  writeFileSync(
   'artifacts/finance-agent-eval.json',
   JSON.stringify(
     {
@@ -85,10 +86,16 @@ writeFileSync(
     null,
     2,
   ),
-);
-writeFileSync(
+  );
+  writeFileSync(
   'artifacts/finance-agent-eval.md',
   `# Finance Agent 30-question evaluation\n\nProvider: ${process.env.AI_PROVIDER ?? 'ollama'}\n\nModel: ${(process.env.AI_PROVIDER ?? 'ollama') === 'ollama' ? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b' : process.env.OPENAI_MODEL ?? 'gpt-5.5'}\n\nPassed: ${passed}/${results.length}\n\n${results.map((row, index) => `${index + 1}. **${row.passed ? 'PASS' : 'FAIL'}** — ${row.question}\n   ${'answer' in row ? row.answer : row.error}`).join('\n')}\n`,
-);
-console.log(`Finance agent evaluation: ${passed}/${results.length} passed.`);
-if (passed !== results.length) process.exitCode = 1;
+  );
+  console.log(`Finance agent evaluation: ${passed}/${results.length} passed.`);
+  if (passed !== results.length) process.exitCode = 1;
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
