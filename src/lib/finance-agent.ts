@@ -77,7 +77,7 @@ async function structuredResponse(
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(120000),
       body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL ?? 'qwen3.5:2b-q4_K_M',
+        model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
         stream: false,
         format: schema,
         think: false,
