@@ -215,6 +215,17 @@ function deterministicFacts(
       dueDate: card.dueDate,
       verified: card.detailsComplete !== false,
     }));
+  if (queries.includes('cards')) {
+    const billed = data.cards.reduce(
+      (sum, card) => sum + Math.max(0, card.statementAmount - card.statementPaid),
+      0,
+    );
+    facts.cardTotals = {
+      totalDebt: INR(summary.debt),
+      billedDue: INR(billed),
+      unbilledAndRemainingEmi: INR(Math.max(0, summary.debt - billed)),
+    };
+  }
   if (queries.includes('priorities'))
     facts.priorities = paymentPriority(data)
       .ranked.slice(0, 8)
@@ -253,6 +264,17 @@ function deterministicFacts(
       };
     });
   return facts;
+}
+
+function currencyValues(value: unknown) {
+  return [...JSON.stringify(value).matchAll(/₹\s*([0-9][0-9,]*(?:\.[0-9]+)?)/g)].map(
+    (match) => match[1].replaceAll(',', ''),
+  );
+}
+
+function hasUngroundedCurrency(result: { answer: string; details: string[] }, facts: unknown) {
+  const allowed = new Set(currencyValues(facts));
+  return currencyValues(result).some((value) => !allowed.has(value));
 }
 
 function prepareDraft(
@@ -356,21 +378,35 @@ export async function financeAgentReply(
     amount,
     context,
   );
-  const result = await structuredResponse(
+  const draft = prepareDraft(data, plan, message, context);
+  const answerInstructions =
+    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Use only the deterministic fact packet. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Give a clear yes/no/caution when asked. A proposed transaction is only a draft: say it is prepared and requires Confirm, never say recorded, added, received, paid or completed. Advice never saves data. When safe-to-spend is zero or a shortfall exists, do not recommend optional spending, lending, investing more, card cash advances, or diverting a due mandatory payment. For an emergency, prefer reducing flexible/want spending and explicitly say when the facts show no safe funding source. Answer the exact question first: spending questions use spending facts, goal questions use goal facts, and billed/unbilled questions use cardTotals. If clarification is present, ask it precisely. Keep the answer under 3 sentences and give at most 4 distinct, non-repeating details. Do not mention regex, handlers, JSON, tools or implementation.';
+  const answerInput = {
+    recentConversation: history.slice(-8),
+    userMessage: message,
+    deterministicFacts: facts,
+    clarification: plan.needsClarification,
+    transactionState: draft.draft
+      ? 'DRAFT_ONLY_REQUIRES_USER_CONFIRMATION'
+      : 'NO_TRANSACTION_DRAFT',
+  };
+  let result = (await structuredResponse(
     'finance_answer',
     answerSchema,
-    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Use only the deterministic fact packet. Never invent, recompute or alter a number. Give a clear yes/no/caution when asked. If the user reported a transaction, acknowledge that it is prepared and must be confirmed; do not judge it as a purchase. Mention uncertainty only when relevant. Advice never saves data. If clarification is present, ask it precisely. Keep the answer under 3 sentences and give at most 4 distinct, non-repeating details. Do not mention regex, handlers, JSON, tools or implementation.',
-    JSON.stringify({
-      recentConversation: history.slice(-8),
-      userMessage: message,
-      deterministicFacts: facts,
-      clarification: plan.needsClarification,
-    }),
-  );
+    answerInstructions,
+    JSON.stringify(answerInput),
+  )) as { answer: string; details: string[] };
+  if (hasUngroundedCurrency(result, facts))
+    result = (await structuredResponse(
+      'finance_answer_grounded_retry',
+      answerSchema,
+      `${answerInstructions} Your previous response used a monetary value absent from the fact packet. Rewrite it using only exact ₹ values already present in deterministicFacts.`,
+      JSON.stringify(answerInput),
+    )) as { answer: string; details: string[] };
   return {
     answer: result.answer,
     details: result.details,
-    ...prepareDraft(data, plan, message, context),
+    ...draft,
   };
 }
 
