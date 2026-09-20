@@ -66,6 +66,33 @@ async function structuredResponse(
   instructions: string,
   input: string,
 ) {
+  if ((process.env.AI_PROVIDER ?? 'ollama') === 'ollama') {
+    const baseUrl = (process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434').replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(120000),
+      body: JSON.stringify({
+        model: process.env.OLLAMA_MODEL ?? 'qwen3:1.7b',
+        stream: false,
+        format: schema,
+        think: false,
+        options: { temperature: 0, num_ctx: 4096 },
+        messages: [
+          { role: 'system', content: instructions },
+          {
+            role: 'user',
+            content: `${input}\n\nReturn only JSON matching this schema:\n${JSON.stringify(schema)}`,
+          },
+        ],
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error ?? 'Local AI provider request failed');
+    const output = body?.message?.content;
+    if (!output) throw new Error('Local AI provider returned no structured answer');
+    return JSON.parse(output);
+  }
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not configured');
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -344,5 +371,5 @@ export async function financeAgentReply(
 }
 
 export function aiFinanceConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return (process.env.AI_PROVIDER ?? 'ollama') === 'ollama' || Boolean(process.env.OPENAI_API_KEY);
 }

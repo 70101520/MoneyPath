@@ -7,20 +7,20 @@ The authenticated Finance Assistant uses a two-stage AI planner and deterministi
 3. The model writes a natural answer from that fact packet. Its instructions prohibit inventing or recalculating numbers.
 4. A proposed mutation is converted to an existing validated command. It is returned as a draft and cannot reach `/api/records` until the owner presses **Confirm**. Advice and hypothetical questions never create drafts.
 
-The model receives the current question, a short recent conversation, account/card/goal names, and only the deterministic facts selected for the answer. Requests set `store: false`. The API key remains server-side.
+The model receives the current question, a short recent conversation, account/card/goal names, and only the deterministic facts selected for the answer. The default provider is a private Ollama instance on the same Compose network, so prompts and financial context stay on the server.
 
 Configure:
 
 ```env
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.5
+AI_PROVIDER=ollama
+OLLAMA_MODEL=qwen3:1.7b
 ```
 
-Without `OPENAI_API_KEY`, MoneyPath retains the older local assistant as a fallback. The read-only demo also remains local so it does not consume API credits.
+No OpenAI API key is required. `qwen3:1.7b` is the conservative default for a 4 GB CPU-only test VM. For stronger answers in production, allocate more RAM and select a larger local model. OpenAI remains optional when `AI_PROVIDER=openai` is explicitly configured.
 
 ## Evaluation
 
-Run the live 30-question suite after configuring the key:
+Run the live 30-question suite after the selected provider is running:
 
 ```sh
 npm run eval:finance-agent

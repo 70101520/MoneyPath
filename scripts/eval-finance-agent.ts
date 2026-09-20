@@ -2,8 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { financeAgentReply } from '../src/lib/finance-agent';
 import { sampleData } from '../src/lib/sample';
 
-if (!process.env.OPENAI_API_KEY)
-  throw new Error('OPENAI_API_KEY is required for the live 30-question eval');
+if ((process.env.AI_PROVIDER ?? 'ollama') === 'openai' && !process.env.OPENAI_API_KEY)
+  throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
 
 const cases = [
   ['Mera friend ₹2000 maang raha hai, de du ya nahi?', false],
@@ -72,14 +72,23 @@ const passed = results.filter((row) => row.passed).length;
 writeFileSync(
   'artifacts/finance-agent-eval.json',
   JSON.stringify(
-    { model: process.env.OPENAI_MODEL ?? 'gpt-5.5', passed, total: results.length, results },
+    {
+      provider: process.env.AI_PROVIDER ?? 'ollama',
+      model:
+        (process.env.AI_PROVIDER ?? 'ollama') === 'ollama'
+          ? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b'
+          : process.env.OPENAI_MODEL ?? 'gpt-5.5',
+      passed,
+      total: results.length,
+      results,
+    },
     null,
     2,
   ),
 );
 writeFileSync(
   'artifacts/finance-agent-eval.md',
-  `# Finance Agent 30-question evaluation\n\nModel: ${process.env.OPENAI_MODEL ?? 'gpt-5.5'}\n\nPassed: ${passed}/${results.length}\n\n${results.map((row, index) => `${index + 1}. **${row.passed ? 'PASS' : 'FAIL'}** — ${row.question}\n   ${'answer' in row ? row.answer : row.error}`).join('\n')}\n`,
+  `# Finance Agent 30-question evaluation\n\nProvider: ${process.env.AI_PROVIDER ?? 'ollama'}\n\nModel: ${(process.env.AI_PROVIDER ?? 'ollama') === 'ollama' ? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b' : process.env.OPENAI_MODEL ?? 'gpt-5.5'}\n\nPassed: ${passed}/${results.length}\n\n${results.map((row, index) => `${index + 1}. **${row.passed ? 'PASS' : 'FAIL'}** — ${row.question}\n   ${'answer' in row ? row.answer : row.error}`).join('\n')}\n`,
 );
 console.log(`Finance agent evaluation: ${passed}/${results.length} passed.`);
 if (passed !== results.length) process.exitCode = 1;

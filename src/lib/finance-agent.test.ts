@@ -10,11 +10,13 @@ describe('general reasoning finance agent orchestration', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.OPENAI_API_KEY;
+    delete process.env.AI_PROVIDER;
   });
 
   it('lets the model plan while deterministic engines provide every financial number', async () => {
     expect(extractedAmount('Mera friend ₹2000 maang raha hai, de du ya nahi?')).toBe(200000);
     process.env.OPENAI_API_KEY = 'test-key';
+    process.env.AI_PROVIDER = 'openai';
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(
@@ -48,6 +50,7 @@ describe('general reasoning finance agent orchestration', () => {
 
   it('returns a proposed mutation but never executes it without the existing confirmation flow', async () => {
     process.env.OPENAI_API_KEY = 'test-key';
+    process.env.AI_PROVIDER = 'openai';
     vi.stubGlobal(
       'fetch',
       vi
