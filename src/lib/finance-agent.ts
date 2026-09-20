@@ -45,9 +45,9 @@ const plannerSchema = {
         'account_deposit',
       ],
     },
-    accountQuery: { type: 'string' },
-    cardQuery: { type: 'string' },
-    needsClarification: { type: 'string' },
+    accountQuery: { type: 'string', maxLength: 80 },
+    cardQuery: { type: 'string', maxLength: 80 },
+    needsClarification: { type: 'string', maxLength: 160 },
   },
 } as const;
 const answerSchema = {
@@ -55,8 +55,12 @@ const answerSchema = {
   additionalProperties: false,
   required: ['answer', 'details'],
   properties: {
-    answer: { type: 'string' },
-    details: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+    answer: { type: 'string', maxLength: 500 },
+    details: {
+      type: 'array',
+      items: { type: 'string', maxLength: 220 },
+      maxItems: 4,
+    },
   },
 } as const;
 
@@ -73,11 +77,11 @@ async function structuredResponse(
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(120000),
       body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL ?? 'qwen3:1.7b',
+        model: process.env.OLLAMA_MODEL ?? 'qwen3.5:2b-q4_K_M',
         stream: false,
         format: schema,
         think: false,
-        options: { temperature: 0, num_ctx: 4096 },
+        options: { temperature: 0, num_ctx: 4096, num_predict: 350 },
         messages: [
           { role: 'system', content: instructions },
           {
@@ -342,7 +346,7 @@ export async function financeAgentReply(
   const plan = (await structuredResponse(
     'finance_plan',
     plannerSchema,
-    'You are the planner for a personal finance assistant. Understand unrestricted Hindi, English, Hinglish and typos. Select every deterministic query needed to answer. cash_outflow is for any hypothetical giving, lending, buying or spending. Use mutation none for advice and hypothetical questions. Select a mutation only when the user clearly says a transaction happened or explicitly asks to record/add it. Never calculate or answer; only plan. If a transfer source is missing, explain it in needsClarification.',
+    `You are the semantic planner for a personal finance assistant. Understand unrestricted Hindi, English, Hinglish and typos. Select every deterministic query needed to answer. cash_outflow is for hypothetical giving, lending, buying or spending. Use mutation none for advice, questions and hypotheticals. When the user clearly reports a completed transaction or commands record/add/save, you MUST select its matching mutation: salary or money received as income; bank deposit as account_deposit; purchase/spend as expense; money borrowed from a person as friend_borrowing; paid a card as card_payment; cash taken from a card as cash_advance. Put the mentioned account/card name in accountQuery/cardQuery. A catalog match means it is present. Ask for clarification only when data required to build that transaction is truly absent. Never calculate or answer; only plan. Semantic examples: "salary arrived in bank" => income; "fuel spent from bank" => expense; "friend loan received in bank" => friend_borrowing; "paid card from bank" => card_payment; "withdrew card cash into bank" => cash_advance; "may I buy it" => none.`,
     JSON.stringify({ recentConversation: history.slice(-8), entityCatalog, userMessage: message }),
   )) as Plan;
   const amount = extractedAmount(message);
@@ -355,7 +359,7 @@ export async function financeAgentReply(
   const result = await structuredResponse(
     'finance_answer',
     answerSchema,
-    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Reason from the deterministic fact packet only. Never invent, recompute or modify a number. Explain a clear yes/no/caution when asked. Mention uncertainty only when relevant. Advice never saves data. If clarification is present, ask it precisely. Do not mention regex, handlers, JSON, tools or implementation.',
+    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Use only the deterministic fact packet. Never invent, recompute or alter a number. Give a clear yes/no/caution when asked. If the user reported a transaction, acknowledge that it is prepared and must be confirmed; do not judge it as a purchase. Mention uncertainty only when relevant. Advice never saves data. If clarification is present, ask it precisely. Keep the answer under 3 sentences and give at most 4 distinct, non-repeating details. Do not mention regex, handlers, JSON, tools or implementation.',
     JSON.stringify({
       recentConversation: history.slice(-8),
       userMessage: message,

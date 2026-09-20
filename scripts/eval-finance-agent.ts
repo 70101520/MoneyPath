@@ -77,7 +77,7 @@ async function main() {
       provider: process.env.AI_PROVIDER ?? 'ollama',
       model:
         (process.env.AI_PROVIDER ?? 'ollama') === 'ollama'
-          ? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b'
+          ? process.env.OLLAMA_MODEL ?? 'qwen3.5:2b-q4_K_M'
           : process.env.OPENAI_MODEL ?? 'gpt-5.5',
       passed,
       total: results.length,
@@ -89,7 +89,7 @@ async function main() {
   );
   writeFileSync(
   'artifacts/finance-agent-eval.md',
-  `# Finance Agent 30-question evaluation\n\nProvider: ${process.env.AI_PROVIDER ?? 'ollama'}\n\nModel: ${(process.env.AI_PROVIDER ?? 'ollama') === 'ollama' ? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b' : process.env.OPENAI_MODEL ?? 'gpt-5.5'}\n\nPassed: ${passed}/${results.length}\n\n${results.map((row, index) => `${index + 1}. **${row.passed ? 'PASS' : 'FAIL'}** — ${row.question}\n   ${'answer' in row ? row.answer : row.error}`).join('\n')}\n`,
+  `# Finance Agent 30-question evaluation\n\nProvider: ${process.env.AI_PROVIDER ?? 'ollama'}\n\nModel: ${(process.env.AI_PROVIDER ?? 'ollama') === 'ollama' ? process.env.OLLAMA_MODEL ?? 'qwen3.5:2b-q4_K_M' : process.env.OPENAI_MODEL ?? 'gpt-5.5'}\n\nPassed: ${passed}/${results.length}\n\n${results.map((row, index) => `${index + 1}. **${row.passed ? 'PASS' : 'FAIL'}** — ${row.question}\n   ${'answer' in row ? row.answer : row.error}`).join('\n')}\n`,
   );
   console.log(`Finance agent evaluation: ${passed}/${results.length} passed.`);
   if (passed !== results.length) process.exitCode = 1;

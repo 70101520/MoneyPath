@@ -41,7 +41,7 @@ services:
     image: ollama/ollama:latest
     environment:
       OLLAMA_HOST: http://ollama:11434
-    command: ['pull', '${OLLAMA_MODEL:-qwen3:1.7b}']
+    command: ['pull', '${OLLAMA_MODEL:-qwen3.5:2b-q4_K_M}']
     depends_on:
       ollama:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.5}
       AI_PROVIDER: ${AI_PROVIDER:-ollama}
       OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:2b-q4_K_M}
     ports:
       - '${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000'
     depends_on:

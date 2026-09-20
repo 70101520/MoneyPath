@@ -13,10 +13,10 @@ Configure:
 
 ```env
 AI_PROVIDER=ollama
-OLLAMA_MODEL=qwen3:1.7b
+OLLAMA_MODEL=qwen3.5:2b-q4_K_M
 ```
 
-No OpenAI API key is required. `qwen3:1.7b` is the conservative default for a 4 GB CPU-only test VM. For stronger answers in production, allocate more RAM and select a larger local model. OpenAI remains optional when `AI_PROVIDER=openai` is explicitly configured.
+No OpenAI API key is required. `qwen3.5:2b-q4_K_M` is the default for the 4 GB CPU-only test VM. For stronger answers in production, allocate more RAM and select a larger local model. OpenAI remains optional when `AI_PROVIDER=openai` is explicitly configured.
 
 ## Evaluation
 
