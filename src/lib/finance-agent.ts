@@ -223,6 +223,17 @@ function findNamed<T extends { id: string; name: string }>(
   return selected ? rows.find((row) => row.id === selected) : undefined;
 }
 
+function findUniquelyNamed<T extends { id: string; name: string }>(rows: T[], query: string) {
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
+  const matches = rows.filter((row) =>
+    words.some((word) => row.name.toLowerCase().includes(word)),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 export function extractedAmount(message: string) {
   const match = message
     .toLowerCase()
@@ -427,7 +438,9 @@ function prepareDraft(
 ): Pick<ChatReply, 'draft' | 'confirmation'> {
   const amount = extractedAmount(message);
   if (plan.mutation === 'none' || !amount || plan.needsClarification) return {};
-  const account = findNamed(data.accounts, plan.accountQuery || message, context.accountId);
+  const explicitlyNamedAccount = findUniquelyNamed(data.accounts, message);
+  const account =
+    explicitlyNamedAccount ?? findNamed(data.accounts, plan.accountQuery || message, context.accountId);
   const explicitlyNamedCard =
     plan.mutation === 'card_balance_update' ? findNamed(data.cards, message) : undefined;
   const card =

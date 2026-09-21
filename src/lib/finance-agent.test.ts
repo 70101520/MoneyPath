@@ -135,6 +135,21 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.confirmation).toContain('Confirm');
   });
 
+  it('uses the account explicitly named in the current message over a wrong model account', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
+      queries: ['snapshot'], primaryQuery: 'snapshot', mutation: 'account_deposit',
+      accountQuery: 'HDFC', cardQuery: '', needsClarification: '',
+      answer: 'Draft ready.', details: [],
+    })));
+    const data = sampleData('2026-09-14');
+    data.accounts.push({ id: 'bank-sbi', name: 'SBI Savings', kind: 'BANK', balance: 2700000, spendable: true });
+    const reply = await financeAgentReply(data, 'ok 10k add karo SBI me');
+    expect(reply.draft).toMatchObject({ kind: 'income', amount: 1000000, accountId: 'bank-sbi' });
+    expect(reply.confirmation).toContain('SBI Savings');
+    expect(reply.confirmation).not.toContain('HDFC');
+  });
+
   it('prepares a named card balance correction instead of treating it as income', async () => {
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.AI_PROVIDER = 'openai';
