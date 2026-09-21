@@ -183,7 +183,15 @@ export function FinanceAssistant({
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone needs HTTPS (or localhost) in this browser.');
       setVoiceStatus('requesting');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: { ideal: 16000 },
+        },
+      });
       const mediaRecorder = new MediaRecorder(stream);
       recorder.current = mediaRecorder; audioChunks.current = [];
       mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };

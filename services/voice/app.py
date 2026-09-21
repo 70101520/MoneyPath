@@ -12,7 +12,7 @@ def speech_model():
     global model
     if model is None:
         model = WhisperModel(
-            os.getenv("WHISPER_MODEL", "base"),
+            os.getenv("WHISPER_MODEL", "small"),
             device=os.getenv("WHISPER_DEVICE", "cpu"),
             compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
         )
@@ -20,7 +20,7 @@ def speech_model():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "stt": os.getenv("WHISPER_MODEL", "base"), "tts": "espeak-ng"}
+    return {"ok": True, "stt": os.getenv("WHISPER_MODEL", "small"), "language": os.getenv("WHISPER_LANGUAGE", "auto"), "tts": "espeak-ng"}
 
 @app.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
@@ -28,13 +28,14 @@ async def transcribe(audio: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(suffix=suffix) as source:
         source.write(await audio.read())
         source.flush()
+        configured_language = os.getenv("WHISPER_LANGUAGE", "auto").strip().lower()
         segments, info = speech_model().transcribe(
             source.name,
-            language=os.getenv("WHISPER_LANGUAGE", "hi"),
+            language=None if configured_language == "auto" else configured_language,
             beam_size=5,
             vad_filter=True,
             condition_on_previous_text=False,
-            initial_prompt="MoneyPath personal finance assistant. Hindi, English aur Hinglish financial conversation: savings, salary, credit card, payment, kharcha, loan.",
+            initial_prompt="MoneyPath personal finance conversation in natural Hindi, English and Hinglish. Common words: mera, kitna, bacha, savings, salary, credit card, payment, kharcha, loan, EMI, SBI, HDFC, ICICI, Axis.",
         )
         text = " ".join(segment.text.strip() for segment in segments).strip()
     if not text:
