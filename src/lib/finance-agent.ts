@@ -102,7 +102,7 @@ async function structuredResponse(
             stream: false,
             format: schema,
             think: false,
-            options: { temperature: 0, num_ctx: 4096, num_predict: 240 },
+            options: { temperature: 0, num_ctx: 4096, num_predict: 320 },
             messages: [
               { role: 'system', content: instructions },
               {
