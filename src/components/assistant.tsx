@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Mic, Square, Volume2 } from 'lucide-react';
+import { ArrowUp, Mic, Volume2, X } from 'lucide-react';
 import { chatReply, type ChatMemory, type ChatReply } from '@/lib/chat';
 import { calculate, INR, type Data } from '@/lib/finance';
 import { paymentPriority } from '@/lib/decision';
@@ -39,9 +39,14 @@ export function FinanceAssistant({
     [memory, setMemory] = useState<ChatMemory>(),
     [busy, setBusy] = useState(false),
     [recording, setRecording] = useState(false),
+    [voiceMode, setVoiceMode] = useState(false),
     [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle'),
     recorder = useRef<MediaRecorder | null>(null),
-    audioChunks = useRef<Blob[]>([]);
+    audioChunks = useRef<Blob[]>([]),
+    voiceModeRef = useRef(false),
+    cancelVoiceTurn = useRef(false),
+    voiceFrame = useRef<number | null>(null),
+    voiceContext = useRef<AudioContext | null>(null);
   useEffect(() => {
     if (demo) return;
     void fetch('/api/chat')
@@ -174,8 +179,7 @@ export function FinanceAssistant({
       setBusy(false);
     }
   }
-  async function toggleVoice() {
-    if (recording) { recorder.current?.stop(); return; }
+  async function beginVoiceTurn() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone needs HTTPS (or localhost) in this browser.');
       setVoiceStatus('requesting');
@@ -184,7 +188,10 @@ export function FinanceAssistant({
       recorder.current = mediaRecorder; audioChunks.current = [];
       mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
       mediaRecorder.onstop = async () => {
+        if (voiceFrame.current !== null) cancelAnimationFrame(voiceFrame.current);
+        voiceFrame.current = null; void voiceContext.current?.close(); voiceContext.current = null;
         setRecording(false); setVoiceStatus('processing'); stream.getTracks().forEach((track) => track.stop()); setBusy(true);
+        if (cancelVoiceTurn.current) { cancelVoiceTurn.current = false; setVoiceStatus('idle'); setBusy(false); return; }
         try {
           const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
           const form = new FormData(); form.set('audio', audio, 'voice.webm');
@@ -193,10 +200,28 @@ export function FinanceAssistant({
           setInput(body.text);
           setVoiceStatus('idle'); setBusy(false);
           await ask(body.text, true);
+          if (voiceModeRef.current) await beginVoiceTurn();
         } catch (error) { setVoiceStatus('error'); setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Voice unavailable.' }]); }
         finally { setBusy(false); }
       };
       mediaRecorder.start(); setRecording(true); setVoiceStatus('listening');
+      const context = new AudioContext(), analyser = context.createAnalyser(), source = context.createMediaStreamSource(stream), samples = new Uint8Array(512);
+      analyser.fftSize = 1024; source.connect(analyser); voiceContext.current = context;
+      const startedAt = performance.now(); let noise = 0, readings = 0, speechMs = 0, heardSpeech = false, quietSince = 0, previous = startedAt;
+      const monitor = () => {
+        if (mediaRecorder.state !== 'recording') return;
+        analyser.getByteTimeDomainData(samples); let energy = 0;
+        for (const value of samples) { const sample = (value - 128) / 128; energy += sample * sample; }
+        const level = Math.sqrt(energy / samples.length), now = performance.now(), elapsed = now - previous; previous = now;
+        if (now - startedAt < 700) { noise += level; readings += 1; }
+        else {
+          const speaking = level > Math.max(.018, (noise / Math.max(1, readings)) * 3.2);
+          if (speaking) { speechMs += elapsed; if (speechMs > 280) heardSpeech = true; quietSince = 0; }
+          else if (heardSpeech) { if (!quietSince) quietSince = now; if (now - quietSince > 1900) mediaRecorder.stop(); }
+        }
+        if (mediaRecorder.state === 'recording') voiceFrame.current = requestAnimationFrame(monitor);
+      };
+      voiceFrame.current = requestAnimationFrame(monitor);
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
       setVoiceStatus(denied ? 'denied' : 'error');
@@ -208,6 +233,15 @@ export function FinanceAssistant({
       }]);
     }
   }
+  async function toggleVoice() {
+    if (!voiceModeRef.current) { voiceModeRef.current = true; setVoiceMode(true); await beginVoiceTurn(); }
+    else if (recording) recorder.current?.stop();
+  }
+  function closeVoiceMode() {
+    voiceModeRef.current = false; setVoiceMode(false); cancelVoiceTurn.current = true;
+    if (recorder.current?.state === 'recording') recorder.current.stop();
+    else { cancelVoiceTurn.current = false; setVoiceStatus('idle'); }
+  }
   async function speak(text: string, reportError = true) {
     try {
       const response = await fetch('/api/voice/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, language: 'hi' }) });
@@ -216,9 +250,11 @@ export function FinanceAssistant({
       if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('Speech service returned invalid audio.');
       const url = URL.createObjectURL(blob), audio = new Audio();
       audio.preload = 'auto'; audio.src = url;
-      audio.onended = () => URL.revokeObjectURL(url);
-      audio.onerror = () => URL.revokeObjectURL(url);
-      await audio.play();
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Voice playback failed.')); };
+        audio.play().catch(reject);
+      });
     } catch (error) { if (reportError) setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Speech unavailable.' }]); }
   }
   return (
@@ -373,9 +409,10 @@ export function FinanceAssistant({
             <div className="composer-actions">
               {!demo && (
                 <button type="button" className={`composer-round voice-record ${recording ? 'recording' : ''}`} disabled={busy} onClick={toggleVoice} aria-label={recording ? 'Stop recording and send' : 'Start voice conversation'}>
-                  {recording ? <Square size={18} /> : <Mic size={20} />}
+                  <Mic size={20} />
                 </button>
               )}
+              {voiceMode && <button type="button" className="composer-round voice-close" onClick={closeVoiceMode} aria-label="Close voice conversation"><X size={20} /></button>}
               <button className="composer-round send" disabled={busy || recording || !input.trim()} aria-label="Send message">
                 <ArrowUp size={20} />
               </button>
@@ -383,7 +420,7 @@ export function FinanceAssistant({
           </div>
           <small className={`voice-status ${voiceStatus}`} role="status" aria-live="polite">
             {voiceStatus === 'requesting' && 'Browser permission box me Allow select karein.'}
-            {voiceStatus === 'listening' && 'Listening… aaram se boliye. Baat khatam hone par red Stop button dabaiye.'}
+            {voiceStatus === 'listening' && 'Listening… aaram se boliye. Baat khatam hone par main answer dunga aur phir dobara sununga.'}
             {voiceStatus === 'processing' && 'Aapki baat samajhkar MoneyPath se answer la raha hoon…'}
             {voiceStatus === 'denied' && 'Permission denied — lock/site icon → Microphone → Allow → Reload.'}
             {voiceStatus === 'error' && 'Voice start nahi hui. Message me diye steps check karein.'}

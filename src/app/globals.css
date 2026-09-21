@@ -2337,6 +2337,7 @@ input[type='checkbox'] {
 .composer-round { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: 999px; color: white; background: #2d7868; cursor: pointer; }
 .composer-round.voice-record { color: #173f37; background: #edf5f1; }
 .composer-round.voice-record.recording { color: white; background: #e32645; }
+.composer-round.voice-close { color: white; background: #121817; }
 .composer-round:disabled { opacity: .45; cursor: not-allowed; }
 .voice-inline-orb { display: flex; justify-content: center; align-items: center; gap: .3rem; min-height: 3rem; }
 .voice-inline-orb span { width: .55rem; height: 1.2rem; border-radius: 999px; background: #2d7868; animation: voice-wave .8s ease-in-out infinite alternate; }

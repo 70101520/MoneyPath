@@ -33,6 +33,18 @@ describe('general reasoning finance agent orchestration', () => {
     expect(JSON.parse(fetch.mock.calls[0][1].body).model).toBe('gpt-oss:20b');
   });
 
+  it('keeps a casual greeting conversational instead of forcing a savings snapshot', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
+      queries: ['conversation'], primaryQuery: 'conversation', mutation: 'none',
+      accountQuery: '', cardQuery: '', needsClarification: '',
+      answer: 'Haan dost, main yahin hoon. Batao kya baat karni hai?', details: [],
+    })));
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'Hi dost');
+    expect(reply.answer).toContain('dost');
+    expect(reply.answer).not.toContain('Bank savings');
+  });
+
   it('lets the model plan while deterministic engines provide every financial number', async () => {
     expect(extractedAmount('Mera friend ₹2000 maang raha hai, de du ya nahi?')).toBe(200000);
     process.env.OPENAI_API_KEY = 'test-key';
