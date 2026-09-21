@@ -35,7 +35,12 @@ async def transcribe(audio: UploadFile = File(...)):
             beam_size=5,
             vad_filter=True,
             condition_on_previous_text=False,
-            initial_prompt="MoneyPath personal finance conversation in natural Hindi, English and Hinglish. Common words: mera, kitna, bacha, savings, salary, credit card, payment, kharcha, loan, EMI, SBI, HDFC, ICICI, Axis.",
+            initial_prompt=(
+                "MoneyPath personal finance conversation in natural Hindi, Indian English and Hinglish. "
+                "Transcribe the speaker's words exactly. Common Hinglish words and phrases: hai, nahi, kya, "
+                "abhi, mera, mujhe, kitna, bacha, baki, de du, karu, rupaye, paisa, savings, salary, "
+                "credit card, payment, kharcha, loan, EMI, SBI, HDFC, ICICI, Axis."
+            ),
         )
         text = " ".join(segment.text.strip() for segment in segments).strip()
     if not text:
