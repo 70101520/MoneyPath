@@ -623,7 +623,7 @@ export async function financeAgentReply(
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
         : (savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer ?? result.answer);
   const deterministicAnswer = savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer;
-  const details = (deterministicAnswer ? [] : distinctDetails(answer, result.details)).filter(
+  const details = (deterministicAnswer || plan.primaryQuery === 'conversation' ? [] : distinctDetails(answer, result.details)).filter(
     (detail) =>
       !draft.draft ||
       !/\b(recorded|saved|paid|completed|add(?:ed)?\s+ho|update(?:d)?\s+ho|ho gaya)\b/i.test(

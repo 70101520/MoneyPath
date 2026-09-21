@@ -55,6 +55,19 @@ describe('general reasoning finance agent orchestration', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('keeps model-generated casual conversation clean without finance detail bullets', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
+      queries: ['conversation'], primaryQuery: 'conversation', mutation: 'none',
+      accountQuery: '', cardQuery: '', needsClarification: '',
+      answer: 'Main bilkul theek dost, tum kaise ho?',
+      details: ['Tumhari baat sunne ke liye main hoon.', 'Batao kya help chahiye?'],
+    })));
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'Aaj tum kaise ho dost?');
+    expect(reply.answer).toContain('theek dost');
+    expect(reply.details).toEqual([]);
+  });
+
   it('grounds an explicit credit-card question in card totals even when the model selects cash', async () => {
     process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
