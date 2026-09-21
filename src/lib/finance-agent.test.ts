@@ -109,6 +109,7 @@ describe('general reasoning finance agent orchestration', () => {
     const finalRequest = JSON.parse(fetch.mock.calls[0][1].body);
     expect(finalRequest.input).toContain('cashOutflow');
     expect(finalRequest.input).toContain('priorities');
+    expect(finalRequest.input).toContain('Hinglish in Latin/Roman letters');
     expect(finalRequest.instructions).toContain('Never invent');
   });
 

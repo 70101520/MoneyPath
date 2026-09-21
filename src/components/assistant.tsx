@@ -206,7 +206,13 @@ export function FinanceAssistant({
           const response = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
           const body = await response.json(); if (!response.ok) throw new Error(body.error);
           setInput(body.text);
-          if (typeof body.confidence === 'number' && body.confidence < 0.38) {
+          const scripts = [/[\u0900-\u097f]/u, /[a-z]/iu, /[\u0d00-\u0d7f]/u, /[\u1100-\u11ff\uac00-\ud7af]/u]
+            .filter((pattern) => pattern.test(body.text)).length;
+          const unclearTranscript =
+            (typeof body.confidence === 'number' && body.confidence < 0.38) ||
+            body.text.includes('�') ||
+            scripts >= 3;
+          if (unclearTranscript) {
             voiceModeRef.current = false; setVoiceMode(false); setVoiceStatus('idle'); setBusy(false);
             setMessages((rows) => [...rows, {
               role: 'ASSISTANT',
