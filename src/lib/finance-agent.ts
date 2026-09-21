@@ -316,7 +316,10 @@ function prepareDraft(
   const amount = extractedAmount(message);
   if (plan.mutation === 'none' || !amount || plan.needsClarification) return {};
   const account = findNamed(data.accounts, plan.accountQuery || message, context.accountId);
-  const card = findNamed(data.cards, plan.cardQuery || message, context.cardId);
+  const explicitlyNamedCard =
+    plan.mutation === 'card_balance_update' ? findNamed(data.cards, message) : undefined;
+  const card =
+    explicitlyNamedCard ?? findNamed(data.cards, plan.cardQuery || message, context.cardId);
   const base = { amount, date: new Date().toISOString().slice(0, 10) };
   if ((plan.mutation === 'income' || plan.mutation === 'account_deposit') && account)
     return {

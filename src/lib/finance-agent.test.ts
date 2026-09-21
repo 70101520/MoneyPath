@@ -82,9 +82,12 @@ describe('general reasoning finance agent orchestration', () => {
         }),
       ),
     );
+    const data = sampleData('2026-09-14');
+    data.cards[2].name = 'ICICI Platinum';
+    data.cards[2].bank = 'ICICI';
     const reply = await financeAgentReply(
-      sampleData('2026-09-14'),
-      'HDFC credit card ka current due 4554 update karo',
+      data,
+      'icic ka crdidt card ka current due 4554 update karo',
       { cardId: 'card-1' },
     );
     expect(reply.draft).toMatchObject({
