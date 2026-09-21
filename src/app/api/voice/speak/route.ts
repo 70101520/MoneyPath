@@ -11,6 +11,6 @@ export async function POST(request: Request) {
     const form = new FormData(); form.set('text', body.text); form.set('language', body.language ?? 'hi');
     const response = await fetch(`${process.env.VOICE_BASE_URL ?? 'http://voice:8090'}/speak`, { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });
     if (!response.ok) throw new Error('Speech generation failed');
-    return new NextResponse(await response.arrayBuffer(), { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' } });
+    return new NextResponse(await response.arrayBuffer(), { headers: { 'Content-Type': response.headers.get('content-type') ?? 'audio/mpeg', 'Cache-Control': 'no-store' } });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Voice unavailable' }, { status: 400 }); }
 }

@@ -206,8 +206,13 @@ export function FinanceAssistant({
     try {
       const response = await fetch('/api/voice/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, language: 'hi' }) });
       if (!response.ok) throw new Error((await response.json()).error);
-      const url = URL.createObjectURL(await response.blob()), audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url); await audio.play();
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('Speech service returned invalid audio.');
+      const url = URL.createObjectURL(blob), audio = new Audio();
+      audio.preload = 'auto'; audio.src = url;
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.onerror = () => URL.revokeObjectURL(url);
+      await audio.play();
     } catch (error) { setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Speech unavailable.' }]); }
   }
   return (

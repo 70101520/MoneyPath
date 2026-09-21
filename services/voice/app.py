@@ -39,8 +39,12 @@ def speak(text: str = Form(...), language: str = Form("en-in")):
     if not text.strip() or len(text) > 1500:
         raise HTTPException(400, "Invalid speech text")
     voice = "hi" if language.startswith("hi") else "en-in"
-    completed = subprocess.run(
+    wav = subprocess.run(
         ["espeak-ng", "-v", voice, "-s", "155", "--stdout", text],
         check=True, capture_output=True,
     )
-    return Response(completed.stdout, media_type="audio/wav")
+    completed = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-f", "mp3", "pipe:1"],
+        input=wav.stdout, check=True, capture_output=True,
+    )
+    return Response(completed.stdout, media_type="audio/mpeg")
