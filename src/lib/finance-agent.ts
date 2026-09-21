@@ -3,6 +3,7 @@ import { simulatePurchase, paymentPriority } from './decision';
 import { spendingReport } from './planning';
 import { goalSummary } from './goals';
 import { parseAmount, type ChatContext, type ChatReply } from './chat';
+import type { AiRuntime } from './ai-settings';
 
 type Query =
   | 'snapshot'
@@ -101,9 +102,16 @@ async function structuredResponse(
   schema: object,
   instructions: string,
   input: string,
+  runtime?: AiRuntime,
 ) {
-  if ((process.env.AI_PROVIDER ?? 'ollama') === 'ollama') {
-    const baseUrl = (process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434').replace(/\/$/, '');
+  const selected = runtime ?? {
+    provider: (process.env.AI_PROVIDER ?? 'ollama').toUpperCase() === 'OPENAI' ? 'OPENAI' : 'OLLAMA',
+    baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
+    model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
+    apiKey: process.env.OPENAI_API_KEY,
+  } as AiRuntime;
+  if (selected.provider === 'OLLAMA') {
+    const baseUrl = selected.baseUrl.replace(/\/$/, '');
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
@@ -112,7 +120,7 @@ async function structuredResponse(
           headers: { 'Content-Type': 'application/json' },
           signal: AbortSignal.timeout(120000),
           body: JSON.stringify({
-            model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
+            model: selected.model,
             stream: false,
             format: schema,
             think: false,
@@ -138,14 +146,36 @@ async function structuredResponse(
     }
     throw lastError;
   }
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not configured');
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  if (selected.provider === 'GPT_OSS') {
+    const response = await fetch(`${selected.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(120000),
+      body: JSON.stringify({
+        model: selected.model,
+        temperature: 0,
+        stream: false,
+        messages: [
+          { role: 'system', content: instructions },
+          { role: 'user', content: input },
+        ],
+        response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error?.message ?? 'GPT-OSS provider request failed');
+    const output = body?.choices?.[0]?.message?.content;
+    if (!output) throw new Error('GPT-OSS provider returned no structured answer');
+    return JSON.parse(output);
+  }
+  const key = selected.apiKey;
+  if (!key) throw new Error('OpenAI API key is not configured');
+  const response = await fetch(`${selected.baseUrl.replace(/\/$/, '')}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? 'gpt-5.5',
+      model: selected.model,
       store: false,
       reasoning: { effort: 'medium' },
       text: { verbosity: 'low', format: { type: 'json_schema', name, strict: true, schema } },
@@ -467,6 +497,7 @@ export async function financeAgentReply(
   message: string,
   context: ChatContext = {},
   history: string[] = [],
+  runtime?: AiRuntime,
 ): Promise<ChatReply> {
   const entityCatalog = {
     accounts: data.accounts.map((row) => row.name),
@@ -493,6 +524,7 @@ export async function financeAgentReply(
     agentSchema,
     answerInstructions,
     JSON.stringify(answerInput),
+    runtime,
   )) as Plan & { answer: string; details: string[] };
   if (hasUngroundedCurrency(result, facts))
     result = (await structuredResponse(
@@ -500,6 +532,7 @@ export async function financeAgentReply(
       agentSchema,
       `${answerInstructions} Your previous response used a monetary value absent from the fact packet. Rewrite it using only exact ₹ values already present in deterministicFacts.`,
       JSON.stringify(answerInput),
+      runtime,
     )) as Plan & { answer: string; details: string[] };
   const plan: Plan = result;
   const draft = prepareDraft(data, plan, message, context);
@@ -551,6 +584,7 @@ export async function financeAgentReply(
   };
 }
 
-export function aiFinanceConfigured() {
+export function aiFinanceConfigured(runtime?: AiRuntime) {
+  if (runtime) return runtime.provider !== 'OPENAI' || Boolean(runtime.apiKey);
   return (process.env.AI_PROVIDER ?? 'ollama') === 'ollama' || Boolean(process.env.OPENAI_API_KEY);
 }

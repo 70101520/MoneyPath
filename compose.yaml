@@ -45,6 +45,21 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+  gpt-oss:
+    profiles: ['gpt-oss']
+    image: vllm/vllm-openai:latest
+    command: ['--model', 'openai/gpt-oss-20b', '--host', '0.0.0.0', '--port', '8000']
+    volumes:
+      - gpt_oss_hf_cache:/root/.cache/huggingface
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
   app:
     build:
       context: .
@@ -70,6 +85,8 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-ollama}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:4b-q4_K_M}
+      GPT_OSS_BASE_URL: ${GPT_OSS_BASE_URL:-http://gpt-oss:8000/v1}
+      GPT_OSS_MODEL: ${GPT_OSS_MODEL:-openai/gpt-oss-20b}
     ports:
       - '${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000'
     depends_on:
@@ -92,3 +109,4 @@ services:
 volumes:
   postgres_data:
   ollama_data:
+  gpt_oss_hf_cache:

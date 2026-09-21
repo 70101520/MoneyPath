@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   MessageCircle,
   Sparkles,
+  BrainCircuit,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import {
@@ -51,6 +52,7 @@ import { PersonalBalances } from './personal';
 import { FuturePlanning } from './future';
 import { FinanceAssistant } from './assistant';
 import { Integrations } from './integrations';
+import { AiMode } from './ai-mode';
 import { planningNotifications } from '@/lib/decision';
 import { financialActionPlan } from '@/lib/guidance';
 const navigation = [
@@ -77,6 +79,7 @@ const navigation = [
   { id: 'goals', label: 'Marriage & goals', icon: ShieldCheck },
   { id: 'what-if', label: 'What-if simulator', icon: CircleHelp },
   { id: 'assistant', label: 'Finance assistant', icon: CircleHelp },
+  { id: 'ai-mode', label: 'AI Mode', icon: BrainCircuit },
   { id: 'integrations', label: 'Mobile & integrations', icon: Settings2 },
 ];
 const colors = ['#337569', '#91ada1', '#d7b787', '#8295aa', '#b5bdc5', '#e0d5c1'];
@@ -334,7 +337,9 @@ export function Workspace({
             </div>
           )}
           <div className="page-content-transition" key={active}>
-            {active === 'integrations' ? (
+            {active === 'ai-mode' ? (
+              <AiMode demo={demo} />
+            ) : active === 'integrations' ? (
               <Integrations demo={demo} data={data} />
             ) : active === 'assistant' ? (
               <FinanceAssistant data={data} demo={demo} />

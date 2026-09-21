@@ -6,6 +6,8 @@ import { db } from '@/lib/db';
 import { readData } from '@/lib/service';
 import { chatReply } from '@/lib/chat';
 import { aiFinanceConfigured, financeAgentReply } from '@/lib/finance-agent';
+import { aiRuntime } from '@/lib/ai-settings';
+import { relevantMemories } from '@/lib/assistant-memory';
 
 export async function GET() {
   const user = await currentUser();
@@ -58,11 +60,14 @@ export async function POST(request: Request) {
         data: { userId: user.id, role: 'USER', content: encrypt(body.message)! },
       }),
       context = { accountId: body.accountId, cardId: body.cardId, memory },
+      memories = await relevantMemories(user.id, body.message),
       history = recent
         .reverse()
-        .map((row) => `${row.role === 'USER' ? 'User' : 'MoneyPath'}: ${decrypt(row.content)}`),
-      reply = aiFinanceConfigured()
-        ? await financeAgentReply(data, body.message, context, history)
+        .map((row) => `${row.role === 'USER' ? 'User' : 'MoneyPath'}: ${decrypt(row.content)}`)
+        .concat(memories.map((value) => `Relevant preference memory: ${value}`)),
+      runtime = await aiRuntime(user.id),
+      reply = aiFinanceConfigured(runtime)
+        ? await financeAgentReply(data, body.message, context, history, runtime)
         : chatReply(data, body.message, context);
     await db.chatMessage.create({
       data: {

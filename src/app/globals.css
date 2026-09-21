@@ -2319,3 +2319,9 @@ input[type='checkbox'] {
     scroll-behavior: auto !important;
   }
 }
+.provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+.provider-card { display: flex; min-height: 155px; flex-direction: column; align-items: flex-start; gap: .75rem; padding: 1.1rem; text-align: left; color: inherit; background: #fff; border: 1px solid #dce3de; border-radius: 16px; cursor: pointer; }
+.provider-card.active { border-color: #337569; box-shadow: 0 0 0 2px rgba(51,117,105,.12); background: #f6fbf8; }
+.provider-card strong { font-size: 1.05rem; }
+.provider-card small { line-height: 1.5; color: #607069; }
+@media (max-width: 760px) { .provider-grid { grid-template-columns: 1fr; } }

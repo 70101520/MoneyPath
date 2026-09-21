@@ -28,6 +28,7 @@ const sections = [
   'goals',
   'what-if',
   'assistant',
+  'ai-mode',
   'integrations',
 ];
 export default async function Page({ params }: { params: Promise<{ section: string }> }) {

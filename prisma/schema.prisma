@@ -41,6 +41,30 @@ model User {
   notificationDeliveries NotificationDelivery[]
   chatMessages ChatMessage[]
   cashAdvances CashAdvance[]
+  aiSettings AiSettings?
+  assistantMemories AssistantMemory[]
+}
+model AiSettings {
+  userId String @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider String @default("OLLAMA")
+  ollamaUrl String @default("http://ollama:11434")
+  ollamaModel String @default("qwen3.5:4b-q4_K_M")
+  gptOssUrl String @default("http://gpt-oss:8000/v1")
+  gptOssModel String @default("openai/gpt-oss-20b")
+  openaiModel String @default("gpt-5.5")
+  openaiApiKey String?
+  updatedAt DateTime @updatedAt
+}
+model AssistantMemory {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content String
+  searchText String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, updatedAt])
 }
 model ChatMessage {
   id String @id @default(cuid())
