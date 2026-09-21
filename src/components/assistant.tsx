@@ -41,7 +41,9 @@ export function FinanceAssistant({
     [recording, setRecording] = useState(false),
     [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle'),
     recorder = useRef<MediaRecorder | null>(null),
-    audioChunks = useRef<Blob[]>([]);
+    audioChunks = useRef<Blob[]>([]),
+    voiceFrame = useRef<number | null>(null),
+    voiceContext = useRef<AudioContext | null>(null);
   useEffect(() => {
     if (demo) return;
     void fetch('/api/chat')
@@ -61,9 +63,8 @@ export function FinanceAssistant({
           );
       });
   }, [demo]);
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const message = input.trim();
+  async function ask(message: string, readAnswer = false) {
+    message = message.trim();
     if (!message) return;
     setMessages((rows) => [...rows, { role: 'USER', content: message }]);
     setInput('');
@@ -99,6 +100,7 @@ export function FinanceAssistant({
           userMessageId,
         },
       ]);
+      if (readAnswer) await speak([reply.answer, ...(reply.details ?? [])].join('. '), false);
     } catch (error) {
       setMessages((rows) => [
         ...rows,
@@ -110,6 +112,10 @@ export function FinanceAssistant({
     } finally {
       setBusy(false);
     }
+  }
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    await ask(input);
   }
   async function confirm(index: number, draft: ChatReply['draft'], userMessageId?: string) {
     if (!draft || demo) return;
@@ -179,6 +185,9 @@ export function FinanceAssistant({
       recorder.current = mediaRecorder; audioChunks.current = [];
       mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
       mediaRecorder.onstop = async () => {
+        if (voiceFrame.current !== null) cancelAnimationFrame(voiceFrame.current);
+        voiceFrame.current = null;
+        void voiceContext.current?.close(); voiceContext.current = null;
         setRecording(false); setVoiceStatus('processing'); stream.getTracks().forEach((track) => track.stop()); setBusy(true);
         try {
           const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
@@ -186,11 +195,27 @@ export function FinanceAssistant({
           const response = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
           const body = await response.json(); if (!response.ok) throw new Error(body.error);
           setInput(body.text);
-          setVoiceStatus('idle');
+          setVoiceStatus('idle'); setBusy(false);
+          await ask(body.text, true);
         } catch (error) { setVoiceStatus('error'); setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Voice unavailable.' }]); }
         finally { setBusy(false); }
       };
       mediaRecorder.start(); setRecording(true); setVoiceStatus('listening');
+      const context = new AudioContext(), analyser = context.createAnalyser(), source = context.createMediaStreamSource(stream), samples = new Uint8Array(512);
+      analyser.fftSize = 1024; source.connect(analyser); voiceContext.current = context;
+      const startedAt = performance.now(); let heardSpeech = false, quietSince = 0;
+      const monitor = () => {
+        if (mediaRecorder.state !== 'recording') return;
+        analyser.getByteTimeDomainData(samples);
+        let energy = 0;
+        for (const value of samples) { const sample = (value - 128) / 128; energy += sample * sample; }
+        const speaking = Math.sqrt(energy / samples.length) > 0.022, now = performance.now();
+        if (speaking) { heardSpeech = true; quietSince = 0; }
+        else if (heardSpeech) { if (!quietSince) quietSince = now; if (now - quietSince > 1300) mediaRecorder.stop(); }
+        if (now - startedAt > 25000 && mediaRecorder.state === 'recording') mediaRecorder.stop();
+        else voiceFrame.current = requestAnimationFrame(monitor);
+      };
+      voiceFrame.current = requestAnimationFrame(monitor);
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
       setVoiceStatus(denied ? 'denied' : 'error');
@@ -202,7 +227,7 @@ export function FinanceAssistant({
       }]);
     }
   }
-  async function speak(text: string) {
+  async function speak(text: string, reportError = true) {
     try {
       const response = await fetch('/api/voice/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, language: 'hi' }) });
       if (!response.ok) throw new Error((await response.json()).error);
@@ -213,7 +238,7 @@ export function FinanceAssistant({
       audio.onended = () => URL.revokeObjectURL(url);
       audio.onerror = () => URL.revokeObjectURL(url);
       await audio.play();
-    } catch (error) { setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Speech unavailable.' }]); }
+    } catch (error) { if (reportError) setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Speech unavailable.' }]); }
   }
   return (
     <div className={`planning finance-assistant ${compact ? 'compact' : ''}`}>
@@ -369,15 +394,23 @@ export function FinanceAssistant({
             <div className="voice-control">
               <button type="button" className={`button secondary voice-record ${recording ? 'recording' : ''}`} disabled={busy} onClick={toggleVoice}>
                 {recording ? <Square size={16} /> : <Mic size={16} />}
-                {recording ? ' Stop recording' : voiceStatus === 'requesting' ? ' Allow microphone' : voiceStatus === 'processing' ? ' Processing voice…' : ' Speak'}
+                {recording ? ' Listening…' : voiceStatus === 'requesting' ? ' Allow microphone' : voiceStatus === 'processing' ? ' Understanding…' : ' Speak'}
               </button>
               <small className={`voice-status ${voiceStatus}`} role="status" aria-live="polite">
                 {voiceStatus === 'requesting' && 'Browser permission box me Allow select karein.'}
-                {voiceStatus === 'listening' && 'Microphone ON — ab boliye, phir Stop recording dabaiye.'}
-                {voiceStatus === 'processing' && 'Aapki voice ko text me badal raha hai…'}
+                {voiceStatus === 'listening' && 'Microphone ON — ab boliye. Aap chup honge to main khud answer bhejunga.'}
+                {voiceStatus === 'processing' && 'Aapki baat samajhkar MoneyPath se answer la raha hoon…'}
                 {voiceStatus === 'denied' && 'Permission denied — lock/site icon → Microphone → Allow → Reload.'}
                 {voiceStatus === 'error' && 'Voice start nahi hui. Message me diye steps check karein.'}
               </small>
+            </div>
+          )}
+          {recording && (
+            <div className="voice-session" role="dialog" aria-label="MoneyPath is listening">
+              <div className="voice-pulse"><Mic size={30} /></div>
+              <strong>Listening…</strong>
+              <span>Boliye Balaram — baat khatam hone par main khud ruk jaunga.</span>
+              <button type="button" className="button secondary" onClick={toggleVoice}><Square size={15} /> Stop now</button>
             </div>
           )}
           <button className="button primary" disabled={busy || recording}>

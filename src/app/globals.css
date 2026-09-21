@@ -2330,4 +2330,8 @@ input[type='checkbox'] {
 .voice-status { min-height: 1.2em; color: var(--muted); max-width: 24rem; }
 .voice-status.listening { color: #a5382c; font-weight: 700; }
 .voice-status.denied, .voice-status.error { color: #a5382c; }
+.voice-session { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; gap: 1rem; padding: 2rem; text-align: center; color: #173f37; background: rgb(247 252 249 / .96); backdrop-filter: blur(8px); }
+.voice-session span { color: var(--muted); }
+.voice-pulse { display: grid; place-items: center; width: 5rem; height: 5rem; border-radius: 999px; color: white; background: #2d7868; box-shadow: 0 0 0 0 rgb(45 120 104 / .35); animation: voice-pulse 1.35s infinite; }
+@keyframes voice-pulse { 70% { box-shadow: 0 0 0 2rem rgb(45 120 104 / 0); } 100% { box-shadow: 0 0 0 0 rgb(45 120 104 / 0); } }
 @media (max-width: 760px) { .provider-grid { grid-template-columns: 1fr; } }

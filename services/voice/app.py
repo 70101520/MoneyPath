@@ -28,7 +28,14 @@ async def transcribe(audio: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(suffix=suffix) as source:
         source.write(await audio.read())
         source.flush()
-        segments, info = speech_model().transcribe(source.name, beam_size=3, vad_filter=True)
+        segments, info = speech_model().transcribe(
+            source.name,
+            language=os.getenv("WHISPER_LANGUAGE", "hi"),
+            beam_size=5,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            initial_prompt="MoneyPath personal finance assistant. Hindi, English aur Hinglish financial conversation: savings, salary, credit card, payment, kharcha, loan.",
+        )
         text = " ".join(segment.text.strip() for segment in segments).strip()
     if not text:
         raise HTTPException(400, "No speech detected")

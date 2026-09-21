@@ -102,6 +102,7 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-base}
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-hi}
       HF_HOME: /models/huggingface
     volumes:
       - voice_models:/models
