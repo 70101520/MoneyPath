@@ -4,7 +4,14 @@ import { spendingReport } from './planning';
 import { goalSummary } from './goals';
 import { parseAmount, type ChatContext, type ChatReply } from './chat';
 
-type Query = 'snapshot' | 'cash_outflow' | 'cards' | 'priorities' | 'spending' | 'goals';
+type Query =
+  | 'snapshot'
+  | 'savings'
+  | 'cash_outflow'
+  | 'cards'
+  | 'priorities'
+  | 'spending'
+  | 'goals';
 type Mutation =
   | 'none'
   | 'income'
@@ -31,7 +38,7 @@ const plannerSchema = {
       type: 'array',
       items: {
         type: 'string',
-        enum: ['snapshot', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
+        enum: ['snapshot', 'savings', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
       },
     },
     mutation: {
@@ -444,12 +451,12 @@ export async function financeAgentReply(
   const amount = extractedAmount(message);
   const facts = deterministicFacts(
     data,
-    ['snapshot', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
+    ['snapshot', 'savings', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
     amount,
     context,
   );
   const answerInstructions =
-    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. For savings questions, use savings: distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Select savings in queries for any question about saved money, savings balance, bachat, how much saving remains, bank savings or total saved assets. For savings questions, distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
     entityCatalog,
@@ -473,6 +480,14 @@ export async function financeAgentReply(
   const draft = prepareDraft(data, plan, message, context);
   const falselyClaimsDraft =
     !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(result.answer);
+  const summary = calculate(data);
+  const investmentValue = (data.investments ?? []).reduce(
+    (sum, investment) => sum + investment.currentValue,
+    0,
+  );
+  const savingsAnswer = plan.queries.includes('savings')
+    ? `Bank savings ${INR(summary.cash)} hain (${data.accounts.map((account) => `${account.name} ${INR(account.balance)}`).join(', ')}). Investments ki current value ${INR(investmentValue)} hai; combined recorded savings/assets ${INR(summary.cash + investmentValue)} aur obligations ke baad safe-to-spend ${summary.safe.available === null ? 'verify karna baki hai' : INR(summary.safe.available)} hai.`
+    : null;
   const answer = draft.confirmation
     ? `Draft prepared — ${draft.confirmation}`
     : plan.mutation !== 'none'
@@ -480,7 +495,7 @@ export async function financeAgentReply(
         'I could not prepare this transaction. Please specify valid source and destination accounts.'
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
-        : result.answer;
+        : (savingsAnswer ?? result.answer);
   const details = distinctDetails(answer, result.details).filter(
     (detail) =>
       !draft.draft ||

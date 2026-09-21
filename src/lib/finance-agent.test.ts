@@ -99,4 +99,28 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.confirmation).toContain('₹4,554');
     expect(reply.details).toEqual([]);
   });
+
+  it('renders savings as deterministic account, investment and safe-money totals', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        response({
+          queries: ['savings'],
+          mutation: 'none',
+          accountQuery: '',
+          cardQuery: '',
+          needsClarification: '',
+          answer: 'Wrong model summary.',
+          details: [],
+        }),
+      ),
+    );
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'meri bachat kitni hai?');
+    expect(reply.answer).toContain('HDFC');
+    expect(reply.answer).toContain('Long-term savings');
+    expect(reply.answer).toContain('combined recorded savings/assets');
+    expect(reply.answer).toContain('safe-to-spend');
+  });
 });
