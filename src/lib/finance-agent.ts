@@ -549,6 +549,14 @@ export async function financeAgentReply(
       JSON.stringify(answerInput),
       runtime,
     )) as Plan & { answer: string; details: string[] };
+  const normalizedMessage = message.toLowerCase();
+  const explicitlyAboutCards =
+    normalizedMessage.includes('card') ||
+    data.cards.some((card) => normalizedMessage.includes(card.name.toLowerCase()) || normalizedMessage.includes(card.bank.toLowerCase()));
+  if (result.mutation === 'none' && explicitlyAboutCards) {
+    result.primaryQuery = 'cards';
+    if (!result.queries.includes('cards')) result.queries.push('cards');
+  }
   const plan: Plan = result;
   const draft = prepareDraft(data, plan, message, context);
   const falselyClaimsDraft =
@@ -577,6 +585,14 @@ export async function financeAgentReply(
             .join(' ')
         : 'Abhi koi active financial goal recorded nahi hai, isliye monthly goal gap calculate nahi ho sakta.'
       : null;
+  const billedCardDue = data.cards.reduce(
+    (sum, card) => sum + Math.max(0, card.statementAmount - card.statementPaid),
+    0,
+  );
+  const cardsAnswer =
+    plan.primaryQuery === 'cards'
+      ? `Aapka total recorded credit-card debt ${INR(summary.debt)} hai. Isme abhi billed payment ${INR(billedCardDue)} hai aur baki ${INR(Math.max(0, summary.debt - billedCardDue))} unbilled/remaining EMI debt hai.`
+      : null;
   const answer = draft.confirmation
     ? `Draft prepared — ${draft.confirmation}`
     : plan.mutation !== 'none'
@@ -584,7 +600,7 @@ export async function financeAgentReply(
         'I could not prepare this transaction. Please specify valid source and destination accounts.'
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
-        : (savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? result.answer);
+        : (savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer ?? result.answer);
   const details = distinctDetails(answer, result.details).filter(
     (detail) =>
       !draft.draft ||

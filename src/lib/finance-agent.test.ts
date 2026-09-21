@@ -45,6 +45,19 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.answer).not.toContain('Bank savings');
   });
 
+  it('grounds an explicit credit-card question in card totals even when the model selects cash', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
+      queries: ['available_cash'], primaryQuery: 'available_cash', mutation: 'none',
+      accountQuery: '', cardQuery: '', needsClarification: '',
+      answer: 'Wrong cash answer.', details: [],
+    })));
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'mera kitna credit card ka payment bacha hi');
+    expect(reply.answer).toContain('total recorded credit-card debt');
+    expect(reply.answer).toContain('billed payment');
+    expect(reply.answer).not.toContain('Wrong cash answer');
+  });
+
   it('lets the model plan while deterministic engines provide every financial number', async () => {
     expect(extractedAmount('Mera friend ₹2000 maang raha hai, de du ya nahi?')).toBe(200000);
     process.env.OPENAI_API_KEY = 'test-key';
