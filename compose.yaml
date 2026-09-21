@@ -87,6 +87,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:4b-q4_K_M}
       GPT_OSS_BASE_URL: ${GPT_OSS_BASE_URL:-http://gpt-oss:8000/v1}
       GPT_OSS_MODEL: ${GPT_OSS_MODEL:-openai/gpt-oss-20b}
+      VOICE_BASE_URL: http://voice:8090
     ports:
       - '${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000'
     depends_on:
@@ -94,6 +95,21 @@ services:
         condition: service_completed_successfully
       ollama-pull:
         condition: service_completed_successfully
+    restart: unless-stopped
+  voice:
+    build: ./services/voice
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      HF_HOME: /models/huggingface
+    volumes:
+      - voice_models:/models
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
   notifier:
     image: moneypath-app
@@ -110,3 +126,4 @@ volumes:
   postgres_data:
   ollama_data:
   gpt_oss_hf_cache:
+  voice_models:

@@ -2324,4 +2324,6 @@ input[type='checkbox'] {
 .provider-card.active { border-color: #337569; box-shadow: 0 0 0 2px rgba(51,117,105,.12); background: #f6fbf8; }
 .provider-card strong { font-size: 1.05rem; }
 .provider-card small { line-height: 1.5; color: #607069; }
+.voice-play { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .55rem; color: #337569; background: transparent; border: 0; cursor: pointer; font: inherit; font-size: .78rem; }
+.voice-record.recording { color: #a5382c; border-color: #d99389; }
 @media (max-width: 760px) { .provider-grid { grid-template-columns: 1fr; } }

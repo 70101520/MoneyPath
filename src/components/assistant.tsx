@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Mic, Square, Volume2 } from 'lucide-react';
 import { chatReply, type ChatMemory, type ChatReply } from '@/lib/chat';
 import { calculate, INR, type Data } from '@/lib/finance';
 import { paymentPriority } from '@/lib/decision';
@@ -35,7 +36,10 @@ export function FinanceAssistant({
     [accountId, setAccountId] = useState(data.accounts.find((a) => a.spendable)?.id ?? ''),
     [cardId, setCardId] = useState(''),
     [memory, setMemory] = useState<ChatMemory>(),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [recording, setRecording] = useState(false),
+    recorder = useRef<MediaRecorder | null>(null),
+    audioChunks = useRef<Blob[]>([]);
   useEffect(() => {
     if (demo) return;
     void fetch('/api/chat')
@@ -163,6 +167,35 @@ export function FinanceAssistant({
       setBusy(false);
     }
   }
+  async function toggleVoice() {
+    if (recording) { recorder.current?.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      recorder.current = mediaRecorder; audioChunks.current = [];
+      mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
+      mediaRecorder.onstop = async () => {
+        setRecording(false); stream.getTracks().forEach((track) => track.stop()); setBusy(true);
+        try {
+          const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+          const form = new FormData(); form.set('audio', audio, 'voice.webm');
+          const response = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
+          const body = await response.json(); if (!response.ok) throw new Error(body.error);
+          setInput(body.text);
+        } catch (error) { setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Voice unavailable.' }]); }
+        finally { setBusy(false); }
+      };
+      mediaRecorder.start(); setRecording(true);
+    } catch (error) { setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Microphone unavailable.' }]); }
+  }
+  async function speak(text: string) {
+    try {
+      const response = await fetch('/api/voice/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, language: 'hi' }) });
+      if (!response.ok) throw new Error((await response.json()).error);
+      const url = URL.createObjectURL(await response.blob()), audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url); await audio.play();
+    } catch (error) { setMessages((rows) => [...rows, { role: 'ASSISTANT', content: error instanceof Error ? error.message : 'Speech unavailable.' }]); }
+  }
   return (
     <div className={`planning finance-assistant ${compact ? 'compact' : ''}`}>
       <section className="panel planning-insights">
@@ -252,6 +285,7 @@ export function FinanceAssistant({
               {message.details?.map((detail) => (
                 <p key={detail}>{detail}</p>
               ))}
+              {message.role === 'ASSISTANT' && <button type="button" className="voice-play" aria-label="Read answer aloud" onClick={() => speak([message.content, ...(message.details ?? [])].join('. '))}><Volume2 size={15} /> Listen</button>}
               {message.draft && (
                 <div>
                   <p>
@@ -312,7 +346,8 @@ export function FinanceAssistant({
             />
             <small>Typing mistakes are okay. MoneyPath matches the intended finance wording.</small>
           </label>
-          <button className="button primary" disabled={busy}>
+          {!demo && <button type="button" className={`button secondary voice-record ${recording ? 'recording' : ''}`} disabled={busy} onClick={toggleVoice}>{recording ? <Square size={16} /> : <Mic size={16} />}{recording ? ' Stop' : ' Speak'}</button>}
+          <button className="button primary" disabled={busy || recording}>
             {busy ? 'Checking…' : 'Send'}
           </button>
         </form>
