@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Square, Volume2 } from 'lucide-react';
+import { ArrowUp, Mic, Square, Volume2 } from 'lucide-react';
 import { chatReply, type ChatMemory, type ChatReply } from '@/lib/chat';
 import { calculate, INR, type Data } from '@/lib/finance';
 import { paymentPriority } from '@/lib/decision';
@@ -41,9 +41,7 @@ export function FinanceAssistant({
     [recording, setRecording] = useState(false),
     [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle'),
     recorder = useRef<MediaRecorder | null>(null),
-    audioChunks = useRef<Blob[]>([]),
-    voiceFrame = useRef<number | null>(null),
-    voiceContext = useRef<AudioContext | null>(null);
+    audioChunks = useRef<Blob[]>([]);
   useEffect(() => {
     if (demo) return;
     void fetch('/api/chat')
@@ -83,7 +81,8 @@ export function FinanceAssistant({
               cardId: cardId || undefined,
             }),
           }),
-          body = await response.json();
+          responseText = await response.text(),
+          body = (() => { try { return JSON.parse(responseText); } catch { return { error: `AI service returned HTTP ${response.status}. Please retry.` }; } })();
         if (!response.ok) throw new Error(body.error);
         reply = body;
         userMessageId = body.userMessageId;
@@ -185,9 +184,6 @@ export function FinanceAssistant({
       recorder.current = mediaRecorder; audioChunks.current = [];
       mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.current.push(event.data); };
       mediaRecorder.onstop = async () => {
-        if (voiceFrame.current !== null) cancelAnimationFrame(voiceFrame.current);
-        voiceFrame.current = null;
-        void voiceContext.current?.close(); voiceContext.current = null;
         setRecording(false); setVoiceStatus('processing'); stream.getTracks().forEach((track) => track.stop()); setBusy(true);
         try {
           const audio = new Blob(audioChunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
@@ -201,21 +197,6 @@ export function FinanceAssistant({
         finally { setBusy(false); }
       };
       mediaRecorder.start(); setRecording(true); setVoiceStatus('listening');
-      const context = new AudioContext(), analyser = context.createAnalyser(), source = context.createMediaStreamSource(stream), samples = new Uint8Array(512);
-      analyser.fftSize = 1024; source.connect(analyser); voiceContext.current = context;
-      const startedAt = performance.now(); let heardSpeech = false, quietSince = 0;
-      const monitor = () => {
-        if (mediaRecorder.state !== 'recording') return;
-        analyser.getByteTimeDomainData(samples);
-        let energy = 0;
-        for (const value of samples) { const sample = (value - 128) / 128; energy += sample * sample; }
-        const speaking = Math.sqrt(energy / samples.length) > 0.022, now = performance.now();
-        if (speaking) { heardSpeech = true; quietSince = 0; }
-        else if (heardSpeech) { if (!quietSince) quietSince = now; if (now - quietSince > 1300) mediaRecorder.stop(); }
-        if (now - startedAt > 25000 && mediaRecorder.state === 'recording') mediaRecorder.stop();
-        else voiceFrame.current = requestAnimationFrame(monitor);
-      };
-      voiceFrame.current = requestAnimationFrame(monitor);
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
       setVoiceStatus(denied ? 'denied' : 'error');
@@ -374,10 +355,11 @@ export function FinanceAssistant({
             </div>
           ))}
         </div>
-        <form className="chat-form" onSubmit={send}>
-          <label>
-            Message
+        <form className={`chat-form assistant-composer ${recording ? 'is-recording' : ''}`} onSubmit={send}>
+          {recording && <div className="voice-inline-orb" aria-hidden="true"><span /><span /><span /></div>}
+          <div className="composer-shell">
             <textarea
+              aria-label="Message"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               lang="en-IN"
@@ -385,37 +367,28 @@ export function FinanceAssistant({
               autoCorrect="on"
               autoCapitalize="sentences"
               maxLength={500}
-              placeholder="Hindi, English or Hinglish: Mera financial status kaisa hai?"
+              placeholder={recording ? 'Listening…' : 'Message MoneyPath in Hindi, English or Hinglish'}
               required
             />
-            <small>Typing mistakes are okay. MoneyPath matches the intended finance wording.</small>
-          </label>
-          {!demo && (
-            <div className="voice-control">
-              <button type="button" className={`button secondary voice-record ${recording ? 'recording' : ''}`} disabled={busy} onClick={toggleVoice}>
-                {recording ? <Square size={16} /> : <Mic size={16} />}
-                {recording ? ' Listening…' : voiceStatus === 'requesting' ? ' Allow microphone' : voiceStatus === 'processing' ? ' Understanding…' : ' Speak'}
+            <div className="composer-actions">
+              {!demo && (
+                <button type="button" className={`composer-round voice-record ${recording ? 'recording' : ''}`} disabled={busy} onClick={toggleVoice} aria-label={recording ? 'Stop recording and send' : 'Start voice conversation'}>
+                  {recording ? <Square size={18} /> : <Mic size={20} />}
+                </button>
+              )}
+              <button className="composer-round send" disabled={busy || recording || !input.trim()} aria-label="Send message">
+                <ArrowUp size={20} />
               </button>
-              <small className={`voice-status ${voiceStatus}`} role="status" aria-live="polite">
-                {voiceStatus === 'requesting' && 'Browser permission box me Allow select karein.'}
-                {voiceStatus === 'listening' && 'Microphone ON — ab boliye. Aap chup honge to main khud answer bhejunga.'}
-                {voiceStatus === 'processing' && 'Aapki baat samajhkar MoneyPath se answer la raha hoon…'}
-                {voiceStatus === 'denied' && 'Permission denied — lock/site icon → Microphone → Allow → Reload.'}
-                {voiceStatus === 'error' && 'Voice start nahi hui. Message me diye steps check karein.'}
-              </small>
             </div>
-          )}
-          {recording && (
-            <div className="voice-session" role="dialog" aria-label="MoneyPath is listening">
-              <div className="voice-pulse"><Mic size={30} /></div>
-              <strong>Listening…</strong>
-              <span>Boliye Balaram — baat khatam hone par main khud ruk jaunga.</span>
-              <button type="button" className="button secondary" onClick={toggleVoice}><Square size={15} /> Stop now</button>
-            </div>
-          )}
-          <button className="button primary" disabled={busy || recording}>
-            {busy ? 'Checking…' : 'Send'}
-          </button>
+          </div>
+          <small className={`voice-status ${voiceStatus}`} role="status" aria-live="polite">
+            {voiceStatus === 'requesting' && 'Browser permission box me Allow select karein.'}
+            {voiceStatus === 'listening' && 'Listening… aaram se boliye. Baat khatam hone par red Stop button dabaiye.'}
+            {voiceStatus === 'processing' && 'Aapki baat samajhkar MoneyPath se answer la raha hoon…'}
+            {voiceStatus === 'denied' && 'Permission denied — lock/site icon → Microphone → Allow → Reload.'}
+            {voiceStatus === 'error' && 'Voice start nahi hui. Message me diye steps check karein.'}
+            {voiceStatus === 'idle' && 'Typing mistakes are okay. Voice me Stop dabane ke baad question automatically send hoga.'}
+          </small>
         </form>
         {!demo && (
           <button type="button" className="button secondary" disabled={busy} onClick={undo}>
