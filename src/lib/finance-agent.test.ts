@@ -78,7 +78,7 @@ describe('general reasoning finance agent orchestration', () => {
           cardQuery: 'HDFC',
           needsClarification: '',
           answer: 'HDFC balance update draft ready hai.',
-          details: [],
+          details: ['ICICI card mein ₹4,554 add ho gaya.'],
         }),
       ),
     );
@@ -97,5 +97,6 @@ describe('general reasoning finance agent orchestration', () => {
       statementAmount: 455400,
     });
     expect(reply.confirmation).toContain('₹4,554');
+    expect(reply.details).toEqual([]);
   });
 });

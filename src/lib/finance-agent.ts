@@ -463,9 +463,16 @@ export async function financeAgentReply(
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
         : result.answer;
+  const details = distinctDetails(answer, result.details).filter(
+    (detail) =>
+      !draft.draft ||
+      !/\b(recorded|saved|paid|completed|add(?:ed)?\s+ho|update(?:d)?\s+ho|ho gaya)\b/i.test(
+        detail,
+      ),
+  );
   return {
     answer,
-    details: distinctDetails(answer, result.details),
+    details,
     ...draft,
   };
 }
