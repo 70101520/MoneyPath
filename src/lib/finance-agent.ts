@@ -403,6 +403,22 @@ function distinctDetails(answer: string, details: string[]) {
   });
 }
 
+function isGreetingOnly(message: string) {
+  const words = message
+    .toLocaleLowerCase('en-IN')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length || words.length > 8) return false;
+  const greetingWords = new Set([
+    'hi', 'hii', 'hiii', 'hai', 'hey', 'hello', 'helo', 'namaste', 'namaskar',
+    'dost', 'yaar', 'bhai', 'money', 'path', 'moneypath', 'kaise', 'kaisa', 'ho',
+    'good', 'morning', 'afternoon', 'evening', 'thanks', 'thank', 'you', 'shukriya',
+  ]);
+  return words.every((word) => greetingWords.has(word));
+}
+
 function prepareDraft(
   data: Data,
   plan: Plan,
@@ -513,6 +529,11 @@ export async function financeAgentReply(
   history: string[] = [],
   runtime?: AiRuntime,
 ): Promise<ChatReply> {
+  if (isGreetingOnly(message))
+    return {
+      answer: 'Haan dost, main yahin hoon. Batao, aaj kis cheez mein help chahiye?',
+      details: [],
+    };
   const entityCatalog = {
     accounts: data.accounts.map((row) => row.name),
     cards: data.cards.map((row) => row.name),

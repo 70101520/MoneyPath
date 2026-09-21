@@ -45,6 +45,16 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.answer).not.toContain('Bank savings');
   });
 
+  it('protects a voice greeting from a weak model financial-summary misroute', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'Hai, dost.');
+    expect(reply.answer).toBe('Haan dost, main yahin hoon. Batao, aaj kis cheez mein help chahiye?');
+    expect(reply.details).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('grounds an explicit credit-card question in card totals even when the model selects cash', async () => {
     process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
