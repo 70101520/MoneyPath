@@ -601,7 +601,8 @@ export async function financeAgentReply(
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
         : (savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer ?? result.answer);
-  const details = distinctDetails(answer, result.details).filter(
+  const deterministicAnswer = savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer;
+  const details = (deterministicAnswer ? [] : distinctDetails(answer, result.details)).filter(
     (detail) =>
       !draft.draft ||
       !/\b(recorded|saved|paid|completed|add(?:ed)?\s+ho|update(?:d)?\s+ho|ho gaya)\b/i.test(

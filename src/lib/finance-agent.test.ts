@@ -56,6 +56,7 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.answer).toContain('total recorded credit-card debt');
     expect(reply.answer).toContain('billed payment');
     expect(reply.answer).not.toContain('Wrong cash answer');
+    expect(reply.details).toEqual([]);
   });
 
   it('lets the model plan while deterministic engines provide every financial number', async () => {
