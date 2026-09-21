@@ -570,50 +570,10 @@ export async function financeAgentReply(
       JSON.stringify(answerInput),
       runtime,
     )) as Plan & { answer: string; details: string[] };
-  const normalizedMessage = message.toLowerCase();
-  const explicitlyAboutCards =
-    normalizedMessage.includes('card') ||
-    data.cards.some((card) => normalizedMessage.includes(card.name.toLowerCase()) || normalizedMessage.includes(card.bank.toLowerCase()));
-  if (result.mutation === 'none' && explicitlyAboutCards) {
-    result.primaryQuery = 'cards';
-    if (!result.queries.includes('cards')) result.queries.push('cards');
-  }
   const plan: Plan = result;
   const draft = prepareDraft(data, plan, message, context);
   const falselyClaimsDraft =
     !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(result.answer);
-  const summary = calculate(data);
-  const totalAccountBalances = data.accounts.reduce((sum, account) => sum + account.balance, 0);
-  const investmentValue = (data.investments ?? []).reduce(
-    (sum, investment) => sum + investment.currentValue,
-    0,
-  );
-  const savingsAnswer = plan.primaryQuery === 'savings'
-    ? `Bank savings ${INR(totalAccountBalances)} hain (${data.accounts.map((account) => `${account.name} ${INR(account.balance)}`).join(', ')}). Investments ki current value ${INR(investmentValue)} hai; combined recorded savings/assets ${INR(totalAccountBalances + investmentValue)} aur obligations ke baad safe-to-spend ${summary.safe.available === null ? 'verify karna baki hai' : INR(summary.safe.available)} hai.`
-    : null;
-  const availableCashAnswer =
-    plan.primaryQuery === 'available_cash'
-      ? `Abhi free/safe-to-spend paisa ${summary.safe.available === null ? 'verify karna baki hai' : INR(summary.safe.available)} hai. Total bank accounts ${INR(totalAccountBalances)} hain${summary.safe.shortfall ? `, lekin reserved obligations ke against ${INR(summary.safe.shortfall)} ka shortfall hai` : ''}.`
-      : null;
-  const goalsAnswer =
-    plan.primaryQuery === 'goals'
-      ? data.goals?.length
-        ? data.goals
-            .map((goal) => {
-              const value = goalSummary(goal, summary.asOf);
-              return `${goal.name}: monthly required ${INR(value.requiredMonthly)}, remaining gap ${INR(value.shortfall)}, target ${INR(value.total)} by ${goal.targetDate}.`;
-            })
-            .join(' ')
-        : 'Abhi koi active financial goal recorded nahi hai, isliye monthly goal gap calculate nahi ho sakta.'
-      : null;
-  const billedCardDue = data.cards.reduce(
-    (sum, card) => sum + Math.max(0, card.statementAmount - card.statementPaid),
-    0,
-  );
-  const cardsAnswer =
-    plan.primaryQuery === 'cards'
-      ? `Aapka total recorded credit-card debt ${INR(summary.debt)} hai. Isme abhi billed payment ${INR(billedCardDue)} hai aur baki ${INR(Math.max(0, summary.debt - billedCardDue))} unbilled/remaining EMI debt hai.`
-      : null;
   const answer = draft.confirmation
     ? `Draft prepared — ${draft.confirmation}`
     : plan.mutation !== 'none'
@@ -621,9 +581,8 @@ export async function financeAgentReply(
         'I could not prepare this transaction. Please specify valid source and destination accounts.'
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
-        : (savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer ?? result.answer);
-  const deterministicAnswer = savingsAnswer ?? availableCashAnswer ?? goalsAnswer ?? cardsAnswer;
-  const details = (deterministicAnswer || plan.primaryQuery === 'conversation' ? [] : distinctDetails(answer, result.details)).filter(
+        : result.answer;
+  const details = (plan.primaryQuery === 'conversation' ? [] : distinctDetails(answer, result.details)).filter(
     (detail) =>
       !draft.draft ||
       !/\b(recorded|saved|paid|completed|add(?:ed)?\s+ho|update(?:d)?\s+ho|ho gaya)\b/i.test(

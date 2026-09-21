@@ -68,17 +68,16 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.details).toEqual([]);
   });
 
-  it('grounds an explicit credit-card question in card totals even when the model selects cash', async () => {
+  it('returns the model-composed answer without replacing it with a canned card summary', async () => {
     process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
-      queries: ['available_cash'], primaryQuery: 'available_cash', mutation: 'none',
+      queries: ['savings', 'cards', 'priorities'], primaryQuery: 'priorities', mutation: 'none',
       accountQuery: '', cardQuery: '', needsClarification: '',
-      answer: 'Wrong cash answer.', details: [],
+      answer: 'Savings aur small card balances compare karke SBI aur HDFC pehle close kar sakte ho.', details: [],
     })));
-    const reply = await financeAgentReply(sampleData('2026-09-14'), 'mera kitna credit card ka payment bacha hi');
-    expect(reply.answer).toContain('total recorded credit-card debt');
-    expect(reply.answer).toContain('billed payment');
-    expect(reply.answer).not.toContain('Wrong cash answer');
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'saving se kaunse small card payment kar sakta hu?');
+    expect(reply.answer).toContain('SBI aur HDFC');
+    expect(reply.answer).not.toContain('total recorded credit-card debt');
     expect(reply.details).toEqual([]);
   });
 
@@ -172,7 +171,7 @@ describe('general reasoning finance agent orchestration', () => {
     expect(reply.details).toEqual([]);
   });
 
-  it('renders savings as deterministic account, investment and safe-money totals', async () => {
+  it('lets the model explain verified savings facts in the user’s requested context', async () => {
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.AI_PROVIDER = 'openai';
     vi.stubGlobal(
@@ -185,7 +184,7 @@ describe('general reasoning finance agent orchestration', () => {
           accountQuery: '',
           cardQuery: '',
           needsClarification: '',
-          answer: 'Wrong model summary.',
+          answer: 'HDFC aur Long-term savings mila kar recorded savings hain; safe-to-spend alag reserve calculation hai.',
           details: [],
         }),
       ),
@@ -193,7 +192,7 @@ describe('general reasoning finance agent orchestration', () => {
     const reply = await financeAgentReply(sampleData('2026-09-14'), 'meri bachat kitni hai?');
     expect(reply.answer).toContain('HDFC');
     expect(reply.answer).toContain('Long-term savings');
-    expect(reply.answer).toContain('combined recorded savings/assets');
+    expect(reply.answer).toContain('recorded savings');
     expect(reply.answer).toContain('safe-to-spend');
   });
 });
