@@ -412,13 +412,17 @@ export async function financeAgentReply(
       `${answerInstructions} Your previous response used a monetary value absent from the fact packet. Rewrite it using only exact ₹ values already present in deterministicFacts.`,
       JSON.stringify(answerInput),
     )) as { answer: string; details: string[] };
+  const falselyClaimsDraft =
+    !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(result.answer);
   return {
     answer: draft.confirmation
       ? `Draft prepared — ${draft.confirmation}`
       : plan.mutation !== 'none'
         ? plan.needsClarification ||
           'I could not prepare this transaction. Please specify valid source and destination accounts.'
-        : result.answer,
+        : falselyClaimsDraft
+          ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
+          : result.answer,
     details: result.details,
     ...draft,
   };
