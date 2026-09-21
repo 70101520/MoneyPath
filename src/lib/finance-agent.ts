@@ -72,30 +72,39 @@ async function structuredResponse(
 ) {
   if ((process.env.AI_PROVIDER ?? 'ollama') === 'ollama') {
     const baseUrl = (process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434').replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(120000),
-      body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
-        stream: false,
-        format: schema,
-        think: false,
-        options: { temperature: 0, num_ctx: 4096, num_predict: 350 },
-        messages: [
-          { role: 'system', content: instructions },
-          {
-            role: 'user',
-            content: `${input}\n\nReturn only JSON matching this schema:\n${JSON.stringify(schema)}`,
-          },
-        ],
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body?.error ?? 'Local AI provider request failed');
-    const output = body?.message?.content;
-    if (!output) throw new Error('Local AI provider returned no structured answer');
-    return JSON.parse(output);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(120000),
+          body: JSON.stringify({
+            model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
+            stream: false,
+            format: schema,
+            think: false,
+            options: { temperature: 0, num_ctx: 4096, num_predict: 350 },
+            messages: [
+              { role: 'system', content: instructions },
+              {
+                role: 'user',
+                content: `${input}\n\nReturn only JSON matching this schema:\n${JSON.stringify(schema)}`,
+              },
+            ],
+          }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error ?? 'Local AI provider request failed');
+        const output = body?.message?.content;
+        if (!output) throw new Error('Local AI provider returned no structured answer');
+        return JSON.parse(output);
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    throw lastError;
   }
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not configured');
@@ -404,7 +413,12 @@ export async function financeAgentReply(
       JSON.stringify(answerInput),
     )) as { answer: string; details: string[] };
   return {
-    answer: draft.confirmation ? `Draft prepared — ${draft.confirmation}` : result.answer,
+    answer: draft.confirmation
+      ? `Draft prepared — ${draft.confirmation}`
+      : plan.mutation !== 'none'
+        ? plan.needsClarification ||
+          'I could not prepare this transaction. Please specify valid source and destination accounts.'
+        : result.answer,
     details: result.details,
     ...draft,
   };
