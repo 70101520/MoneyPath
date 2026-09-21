@@ -20,6 +20,7 @@ describe('general reasoning finance agent orchestration', () => {
     const fetch = vi.fn().mockResolvedValueOnce(
       response({
         queries: ['cash_outflow', 'priorities'],
+        primaryQuery: 'cash_outflow',
         mutation: 'none',
         accountQuery: '',
         cardQuery: '',
@@ -51,6 +52,7 @@ describe('general reasoning finance agent orchestration', () => {
       vi.fn().mockResolvedValueOnce(
         response({
           queries: ['snapshot'],
+          primaryQuery: 'snapshot',
           mutation: 'account_deposit',
           accountQuery: 'HDFC',
           cardQuery: '',
@@ -73,6 +75,7 @@ describe('general reasoning finance agent orchestration', () => {
       vi.fn().mockResolvedValueOnce(
         response({
           queries: ['cards'],
+          primaryQuery: 'cards',
           mutation: 'card_balance_update',
           accountQuery: '',
           cardQuery: 'HDFC',
@@ -108,6 +111,7 @@ describe('general reasoning finance agent orchestration', () => {
       vi.fn().mockResolvedValueOnce(
         response({
           queries: ['savings'],
+          primaryQuery: 'savings',
           mutation: 'none',
           accountQuery: '',
           cardQuery: '',

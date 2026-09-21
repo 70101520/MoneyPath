@@ -23,6 +23,7 @@ type Mutation =
   | 'card_balance_update';
 type Plan = {
   queries: Query[];
+  primaryQuery: Query;
   mutation: Mutation;
   accountQuery: string;
   cardQuery: string;
@@ -32,7 +33,14 @@ type Plan = {
 const plannerSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['queries', 'mutation', 'accountQuery', 'cardQuery', 'needsClarification'],
+  required: [
+    'queries',
+    'primaryQuery',
+    'mutation',
+    'accountQuery',
+    'cardQuery',
+    'needsClarification',
+  ],
   properties: {
     queries: {
       type: 'array',
@@ -40,6 +48,10 @@ const plannerSchema = {
         type: 'string',
         enum: ['snapshot', 'savings', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
       },
+    },
+    primaryQuery: {
+      type: 'string',
+      enum: ['snapshot', 'savings', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
     },
     mutation: {
       type: 'string',
@@ -64,6 +76,7 @@ const agentSchema = {
   additionalProperties: false,
   required: [
     'queries',
+    'primaryQuery',
     'mutation',
     'accountQuery',
     'cardQuery',
@@ -265,10 +278,20 @@ function deterministicFacts(
       (sum, card) => sum + Math.max(0, card.statementAmount - card.statementPaid),
       0,
     );
+    const largestCard = data.cards
+      .map((card) => ({
+        name: card.name,
+        totalDebt:
+          card.outstanding + card.emis.reduce((sum, emi) => sum + emi.principalRemaining, 0),
+      }))
+      .sort((a, b) => b.totalDebt - a.totalDebt)[0];
     facts.cardTotals = {
       totalDebt: INR(summary.debt),
       billedDue: INR(billed),
       unbilledAndRemainingEmi: INR(Math.max(0, summary.debt - billed)),
+      largestCard: largestCard
+        ? { name: largestCard.name, totalDebt: INR(largestCard.totalDebt) }
+        : null,
     };
   }
   if (queries.includes('priorities'))
@@ -457,7 +480,7 @@ export async function financeAgentReply(
     context,
   );
   const answerInstructions =
-    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Select savings in queries for questions about saved money, savings balance, bachat, how much saving remains, bank savings or total saved assets. An imperative command to add/deposit/record an amount in a named bank or savings account is account_deposit, not a savings question. For savings questions, distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Set primaryQuery to the single topic the user is actually asking about; queries may include supporting topics. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Use primaryQuery savings only for questions about saved money, savings balance, bachat, how much saving remains, bank savings or total saved assets. Giving, lending, purchases and possible spending use primaryQuery cash_outflow. An imperative command to add/deposit/record an amount in a named bank or savings account is account_deposit, not a savings question. For savings questions, distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
     entityCatalog,
@@ -487,7 +510,7 @@ export async function financeAgentReply(
     (sum, investment) => sum + investment.currentValue,
     0,
   );
-  const savingsAnswer = plan.queries.includes('savings')
+  const savingsAnswer = plan.primaryQuery === 'savings'
     ? `Bank savings ${INR(totalAccountBalances)} hain (${data.accounts.map((account) => `${account.name} ${INR(account.balance)}`).join(', ')}). Investments ki current value ${INR(investmentValue)} hai; combined recorded savings/assets ${INR(totalAccountBalances + investmentValue)} aur obligations ke baad safe-to-spend ${summary.safe.available === null ? 'verify karna baki hai' : INR(summary.safe.available)} hai.`
     : null;
   const answer = draft.confirmation
