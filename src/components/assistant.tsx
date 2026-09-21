@@ -170,6 +170,7 @@ export function FinanceAssistant({
   async function toggleVoice() {
     if (recording) { recorder.current?.stop(); return; }
     try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone needs HTTPS (or localhost) in this browser.');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       recorder.current = mediaRecorder; audioChunks.current = [];

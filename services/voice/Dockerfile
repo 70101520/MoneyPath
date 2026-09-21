@@ -3,5 +3,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg espeak-n
 RUN pip install --no-cache-dir fastapi==0.115.12 uvicorn==0.34.2 python-multipart==0.0.20 faster-whisper==1.1.1 requests==2.32.5
 WORKDIR /service
 COPY app.py .
-ENV WHISPER_MODEL=tiny WHISPER_DEVICE=cpu WHISPER_COMPUTE_TYPE=int8
+ENV WHISPER_MODEL=base WHISPER_DEVICE=cpu WHISPER_COMPUTE_TYPE=int8
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8090"]

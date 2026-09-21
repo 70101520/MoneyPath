@@ -99,7 +99,7 @@ services:
   voice:
     build: ./services/voice
     environment:
-      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       HF_HOME: /models/huggingface

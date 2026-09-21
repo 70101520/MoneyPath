@@ -12,7 +12,7 @@ def speech_model():
     global model
     if model is None:
         model = WhisperModel(
-            os.getenv("WHISPER_MODEL", "tiny"),
+            os.getenv("WHISPER_MODEL", "base"),
             device=os.getenv("WHISPER_DEVICE", "cpu"),
             compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
         )
@@ -20,7 +20,7 @@ def speech_model():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "stt": os.getenv("WHISPER_MODEL", "tiny"), "tts": "espeak-ng"}
+    return {"ok": True, "stt": os.getenv("WHISPER_MODEL", "base"), "tts": "espeak-ng"}
 
 @app.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
