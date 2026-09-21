@@ -12,7 +12,8 @@ type Mutation =
   | 'friend_borrowing'
   | 'card_payment'
   | 'cash_advance'
-  | 'account_deposit';
+  | 'account_deposit'
+  | 'card_balance_update';
 type Plan = {
   queries: Query[];
   mutation: Mutation;
@@ -43,6 +44,7 @@ const plannerSchema = {
         'card_payment',
         'cash_advance',
         'account_deposit',
+        'card_balance_update',
       ],
     },
     accountQuery: { type: 'string', maxLength: 80 },
@@ -50,11 +52,20 @@ const plannerSchema = {
     needsClarification: { type: 'string', maxLength: 160 },
   },
 } as const;
-const answerSchema = {
+const agentSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['answer', 'details'],
+  required: [
+    'queries',
+    'mutation',
+    'accountQuery',
+    'cardQuery',
+    'needsClarification',
+    'answer',
+    'details',
+  ],
   properties: {
+    ...plannerSchema.properties,
     answer: { type: 'string', maxLength: 500 },
     details: {
       type: 'array',
@@ -286,6 +297,18 @@ function hasUngroundedCurrency(result: { answer: string; details: string[] }, fa
   return currencyValues(result).some((value) => !allowed.has(value));
 }
 
+function distinctDetails(answer: string, details: string[]) {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}₹]+/gu, ' ').trim();
+  const answerText = normalize(answer);
+  const seen = new Set<string>();
+  return details.filter((detail) => {
+    const value = normalize(detail);
+    if (!value || seen.has(value) || answerText.includes(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
 function prepareDraft(
   data: Data,
   plan: Plan,
@@ -360,6 +383,29 @@ function prepareDraft(
       },
       confirmation: `Record ${INR(amount)} cash advance from ${card.name} into ${account.name}?`,
     };
+  if (plan.mutation === 'card_balance_update' && card)
+    return {
+      draft: {
+        kind: 'updateCard',
+        id: card.id,
+        bank: card.bank,
+        name: card.name,
+        ...(card.lastFour ? { lastFour: card.lastFour } : {}),
+        creditLimit: card.creditLimit,
+        availableLimit: card.availableLimit,
+        outstanding: amount,
+        statementAmount: amount,
+        statementPaid: 0,
+        statementDate: card.statementDate,
+        dueDate: card.dueDate,
+        minimumDue: Math.min(card.minimumDue, amount),
+        interestBps: card.interestBps,
+        status: card.status as 'ACTIVE' | 'FROZEN' | 'CLOSED',
+        detailsComplete: card.detailsComplete,
+        notes: card.notes ?? undefined,
+      },
+      confirmation: `Update ${card.name} current due and outstanding to ${INR(amount)}?`,
+    };
   return {};
 }
 
@@ -374,56 +420,49 @@ export async function financeAgentReply(
     cards: data.cards.map((row) => row.name),
     goals: (data.goals ?? []).map((row) => row.name),
   };
-  const plan = (await structuredResponse(
-    'finance_plan',
-    plannerSchema,
-    `You are the semantic planner for a personal finance assistant. Understand unrestricted Hindi, English, Hinglish and typos. Select every deterministic query needed to answer. Query meanings: snapshot is overall position; cash_outflow is hypothetical giving, lending, buying or spending; cards is balances, billed/unbilled or card comparisons; priorities is what to pay and cash-flow ordering; spending is actual expenses, categories, budgets or where money went in a period; goals is targets, dates and required saving. Use mutation none for advice, questions and hypotheticals. When the user clearly reports a completed transaction or commands record/add/save, you MUST select its matching mutation: salary or money received as income; bank deposit as account_deposit; purchase/spend as expense; money borrowed from a person as friend_borrowing; paid a card as card_payment; cash taken from a card as cash_advance. Put the mentioned account/card name in accountQuery/cardQuery. A catalog match means it is present. Ask for clarification only when data required to build that transaction is truly absent. Never calculate or answer; only plan. Semantic examples: "salary arrived in bank" => income; "fuel spent from bank" => expense; "friend loan received in bank" => friend_borrowing; "paid card from bank" => card_payment; "withdrew card cash into bank" => cash_advance; "may I buy it" => none.`,
-    JSON.stringify({ recentConversation: history.slice(-8), entityCatalog, userMessage: message }),
-  )) as Plan;
   const amount = extractedAmount(message);
   const facts = deterministicFacts(
     data,
-    [...new Set<Query>(['snapshot', ...plan.queries])],
+    ['snapshot', 'cash_outflow', 'cards', 'priorities', 'spending', 'goals'],
     amount,
     context,
   );
-  const draft = prepareDraft(data, plan, message, context);
   const answerInstructions =
-    'You are Balaram’s warm, direct personal finance head. Answer naturally in the user’s Hindi, English or Hinglish style. Use only the deterministic fact packet. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Give a clear yes/no/caution when asked. A proposed transaction is only a draft: say it is prepared and requires Confirm, never say recorded, added, received, paid or completed. Advice never saves data. When safe-to-spend is zero or a shortfall exists, recommend pausing or reducing optional investments such as SIP until immediate mandatory obligations are funded; do not recommend optional spending, lending, investing more, card cash advances, or diverting a due mandatory payment. For an emergency, prefer reducing flexible/want spending and explicitly say when the facts show no safe funding source. Answer the exact question first: spending questions use spending facts, goal questions use goal facts, and billed/unbilled questions use cardTotals. If clarification is present, ask it precisely. Keep the answer under 3 sentences and give at most 4 distinct, non-repeating details. Do not mention regex, handlers, JSON, tools or implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 3 sentences and details distinct, non-repeating, at most 4. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
+    entityCatalog,
     userMessage: message,
     deterministicFacts: facts,
-    clarification: plan.needsClarification,
-    transactionState: draft.draft
-      ? 'DRAFT_ONLY_REQUIRES_USER_CONFIRMATION'
-      : 'NO_TRANSACTION_DRAFT',
   };
   let result = (await structuredResponse(
-    'finance_answer',
-    answerSchema,
+    'finance_decision',
+    agentSchema,
     answerInstructions,
     JSON.stringify(answerInput),
-  )) as { answer: string; details: string[] };
+  )) as Plan & { answer: string; details: string[] };
   if (hasUngroundedCurrency(result, facts))
     result = (await structuredResponse(
-      'finance_answer_grounded_retry',
-      answerSchema,
+      'finance_decision_grounded_retry',
+      agentSchema,
       `${answerInstructions} Your previous response used a monetary value absent from the fact packet. Rewrite it using only exact ₹ values already present in deterministicFacts.`,
       JSON.stringify(answerInput),
-    )) as { answer: string; details: string[] };
+    )) as Plan & { answer: string; details: string[] };
+  const plan: Plan = result;
+  const draft = prepareDraft(data, plan, message, context);
   const falselyClaimsDraft =
     !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(result.answer);
+  const answer = draft.confirmation
+    ? `Draft prepared — ${draft.confirmation}`
+    : plan.mutation !== 'none'
+      ? plan.needsClarification ||
+        'I could not prepare this transaction. Please specify valid source and destination accounts.'
+      : falselyClaimsDraft
+        ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
+        : result.answer;
   return {
-    answer: draft.confirmation
-      ? `Draft prepared — ${draft.confirmation}`
-      : plan.mutation !== 'none'
-        ? plan.needsClarification ||
-          'I could not prepare this transaction. Please specify valid source and destination accounts.'
-        : falselyClaimsDraft
-          ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
-          : result.answer,
-    details: result.details,
+    answer,
+    details: distinctDetails(answer, result.details),
     ...draft,
   };
 }
