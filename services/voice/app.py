@@ -1,4 +1,5 @@
 import os
+import math
 import subprocess
 import tempfile
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -42,10 +43,15 @@ async def transcribe(audio: UploadFile = File(...)):
                 "credit card, payment, kharcha, loan, EMI, SBI, HDFC, ICICI, Axis."
             ),
         )
+        segments = list(segments)
         text = " ".join(segment.text.strip() for segment in segments).strip()
     if not text:
         raise HTTPException(400, "No speech detected")
-    return {"text": text, "language": info.language}
+    average_log_probability = (
+        sum(segment.avg_logprob for segment in segments) / len(segments) if segments else -10
+    )
+    confidence = max(0.0, min(1.0, math.exp(average_log_probability)))
+    return {"text": text, "language": info.language, "confidence": round(confidence, 3)}
 
 @app.post("/speak")
 def speak(text: str = Form(...), language: str = Form("en-in")):

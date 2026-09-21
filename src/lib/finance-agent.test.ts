@@ -3,7 +3,7 @@ import { sampleData } from './sample';
 import { extractedAmount, financeAgentReply } from './finance-agent';
 
 function response(output: object) {
-  return { ok: true, json: async () => ({ output_text: JSON.stringify(output) }) } as Response;
+  return { ok: true, json: async () => ({ output_text: JSON.stringify({ calculations: [], ...output }) }) } as Response;
 }
 
 describe('general reasoning finance agent orchestration', () => {
@@ -110,6 +110,29 @@ describe('general reasoning finance agent orchestration', () => {
     expect(finalRequest.input).toContain('cashOutflow');
     expect(finalRequest.input).toContain('priorities');
     expect(finalRequest.instructions).toContain('Never invent');
+  });
+
+  it('executes requested arithmetic in the deterministic calculator before the final answer', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({
+        queries: ['savings', 'cards'], primaryQuery: 'priorities', mutation: 'none',
+        accountQuery: '', cardQuery: '', needsClarification: '',
+        answer: 'Calculation required.', details: [],
+        calculations: [{ label: 'balance after payment', operation: 'subtract', operands: ['₹1,07,850', '₹20,000'] }],
+      }))
+      .mockResolvedValueOnce(response({
+        queries: ['savings', 'cards'], primaryQuery: 'priorities', mutation: 'none',
+        accountQuery: '', cardQuery: '', needsClarification: '',
+        answer: '₹20,000 payment ke baad ₹87,850 bachega.', details: [], calculations: [],
+      }));
+    vi.stubGlobal('fetch', fetch);
+    const reply = await financeAgentReply(sampleData('2026-09-14'), '20000 card payment ke baad kitna bachega?');
+    expect(reply.answer).toContain('₹87,850');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const secondRequest = JSON.parse(fetch.mock.calls[1][1].body);
+    expect(secondRequest.input).toContain('verifiedCalculations');
+    expect(secondRequest.input).toContain('₹87,850');
   });
 
   it('returns a proposed mutation but never executes it without the existing confirmation flow', async () => {

@@ -206,6 +206,14 @@ export function FinanceAssistant({
           const response = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
           const body = await response.json(); if (!response.ok) throw new Error(body.error);
           setInput(body.text);
+          if (typeof body.confidence === 'number' && body.confidence < 0.38) {
+            voiceModeRef.current = false; setVoiceMode(false); setVoiceStatus('idle'); setBusy(false);
+            setMessages((rows) => [...rows, {
+              role: 'ASSISTANT',
+              content: `Maine suna: “${body.text}” — voice clear nahi thi. Text correct karke Send dabaiye ya mic se dobara boliye.`,
+            }]);
+            return;
+          }
           setVoiceStatus('idle'); setBusy(false);
           await ask(body.text, true);
           if (voiceModeRef.current) await beginVoiceTurn();

@@ -32,6 +32,11 @@ type Plan = {
   cardQuery: string;
   needsClarification: string;
 };
+type CalculationRequest = {
+  label: string;
+  operation: 'sum' | 'subtract' | 'minimum' | 'maximum';
+  operands: string[];
+};
 
 const plannerSchema = {
   type: 'object',
@@ -86,14 +91,29 @@ const agentSchema = {
     'needsClarification',
     'answer',
     'details',
+    'calculations',
   ],
   properties: {
     ...plannerSchema.properties,
-    answer: { type: 'string', maxLength: 360 },
+    answer: { type: 'string', maxLength: 700 },
     details: {
       type: 'array',
       items: { type: 'string', maxLength: 220 },
       maxItems: 3,
+    },
+    calculations: {
+      type: 'array',
+      maxItems: 6,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label', 'operation', 'operands'],
+        properties: {
+          label: { type: 'string', maxLength: 100 },
+          operation: { type: 'string', enum: ['sum', 'subtract', 'minimum', 'maximum'] },
+          operands: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', maxLength: 40 } },
+        },
+      },
     },
   },
 } as const;
@@ -414,6 +434,31 @@ function distinctDetails(answer: string, details: string[]) {
   });
 }
 
+function verifiedCalculations(requests: CalculationRequest[], facts: unknown) {
+  const allowed = new Set(currencyValues(facts));
+  return requests.flatMap((request) => {
+    const values = request.operands.map((operand) => {
+      const match = operand.match(/₹\s*([0-9][0-9,]*(?:\.[0-9]+)?)/);
+      if (!match) return null;
+      const normalized = match[1].replaceAll(',', '');
+      if (!allowed.has(normalized)) return null;
+      return Math.round(Number(normalized) * 100);
+    });
+    if (values.some((value) => value === null)) return [];
+    const numbers = values as number[];
+    if (!numbers.length || (request.operation === 'subtract' && numbers.length < 2)) return [];
+    const result =
+      request.operation === 'sum'
+        ? numbers.reduce((sum, value) => sum + value, 0)
+        : request.operation === 'subtract'
+          ? numbers.slice(1).reduce((value, item) => value - item, numbers[0])
+          : request.operation === 'minimum'
+            ? Math.min(...numbers)
+            : Math.max(...numbers);
+    return [{ label: request.label, operation: request.operation, operands: request.operands, result: INR(result) }];
+  });
+}
+
 function isGreetingOnly(message: string) {
   const words = message
     .toLocaleLowerCase('en-IN')
@@ -441,8 +486,7 @@ function prepareDraft(
   const explicitlyNamedAccount = findUniquelyNamed(data.accounts, message);
   const account =
     explicitlyNamedAccount ?? findNamed(data.accounts, plan.accountQuery || message, context.accountId);
-  const explicitlyNamedCard =
-    plan.mutation === 'card_balance_update' ? findNamed(data.cards, message) : undefined;
+  const explicitlyNamedCard = findUniquelyNamed(data.cards, message);
   const card =
     explicitlyNamedCard ?? findNamed(data.cards, plan.cardQuery || message, context.cardId);
   const base = { amount, date: new Date().toISOString().slice(0, 10) };
@@ -561,7 +605,7 @@ export async function financeAgentReply(
   );
   const answerInstructions =
     'Use primaryQuery conversation for greetings, casual talk, thanks, introductions, or messages with no financial request. Respond warmly without forcing a financial status or quoting money. ' +
-    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Set primaryQuery to the single topic the user is actually asking about; queries may include supporting topics. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Use primaryQuery savings only for questions about saved money, savings balance, bachat, bank savings or total saved assets. Use primaryQuery available_cash when asking how much money is free, available or safe to spend. Giving, lending, purchases and possible spending use primaryQuery cash_outflow. Goal targets, goal gaps and required monthly saving use primaryQuery goals. An imperative command to add/deposit/record an amount in a named bank or savings account is account_deposit, not a savings question. For savings questions, distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Set primaryQuery to the single topic the user is actually asking about; queries may include supporting topics. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent or mentally calculate a monetary value. When arithmetic is needed, add a calculation request using exact ₹ operands copied from deterministicFacts; the backend will return verifiedCalculations for the final answer. If verifiedCalculations are present, use their exact results and return calculations as an empty array. Use primaryQuery savings only for questions about saved money, savings balance, bachat, bank savings or total saved assets. Use primaryQuery available_cash when asking how much money is free, available or safe to spend. Giving, lending, purchases and possible spending use primaryQuery cash_outflow. Goal targets, goal gaps and required monthly saving use primaryQuery goals. An imperative command to add/deposit/record an amount in a named bank or savings account is account_deposit, not a savings question. For savings questions, distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer concise and details distinct, non-repeating, at most 3. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
     entityCatalog,
@@ -574,15 +618,28 @@ export async function financeAgentReply(
     answerInstructions,
     JSON.stringify(answerInput),
     runtime,
-  )) as Plan & { answer: string; details: string[] };
-  if (hasUngroundedCurrency(result, facts))
+  )) as Plan & { answer: string; details: string[]; calculations: CalculationRequest[] };
+  const calculations = verifiedCalculations(result.calculations ?? [], facts);
+  const finalAnswerInput = calculations.length
+    ? { ...answerInput, verifiedCalculations: calculations }
+    : answerInput;
+  if (calculations.length) {
+    result = (await structuredResponse(
+      'finance_decision_with_calculations',
+      agentSchema,
+      answerInstructions,
+      JSON.stringify(finalAnswerInput),
+      runtime,
+    )) as Plan & { answer: string; details: string[]; calculations: CalculationRequest[] };
+  }
+  if (hasUngroundedCurrency(result, finalAnswerInput))
     result = (await structuredResponse(
       'finance_decision_grounded_retry',
       agentSchema,
       `${answerInstructions} Your previous response used a monetary value absent from the fact packet. Rewrite it using only exact ₹ values already present in deterministicFacts.`,
-      JSON.stringify(answerInput),
+      JSON.stringify(finalAnswerInput),
       runtime,
-    )) as Plan & { answer: string; details: string[] };
+    )) as Plan & { answer: string; details: string[]; calculations: CalculationRequest[] };
   const plan: Plan = result;
   const draft = prepareDraft(data, plan, message, context);
   const falselyClaimsDraft =
