@@ -164,7 +164,7 @@ async function structuredResponse(
     const response = await fetch(`${selected.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(300000),
       body: JSON.stringify({
         model: selected.model,
         temperature: 0,
