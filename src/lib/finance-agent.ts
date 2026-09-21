@@ -66,11 +66,11 @@ const agentSchema = {
   ],
   properties: {
     ...plannerSchema.properties,
-    answer: { type: 'string', maxLength: 500 },
+    answer: { type: 'string', maxLength: 360 },
     details: {
       type: 'array',
       items: { type: 'string', maxLength: 220 },
-      maxItems: 4,
+      maxItems: 3,
     },
   },
 } as const;
@@ -95,7 +95,7 @@ async function structuredResponse(
             stream: false,
             format: schema,
             think: false,
-            options: { temperature: 0, num_ctx: 4096, num_predict: 350 },
+            options: { temperature: 0, num_ctx: 4096, num_predict: 240 },
             messages: [
               { role: 'system', content: instructions },
               {
@@ -246,7 +246,7 @@ function deterministicFacts(
   }
   if (queries.includes('priorities'))
     facts.priorities = paymentPriority(data)
-      .ranked.slice(0, 8)
+      .ranked.slice(0, 5)
       .map((row) => ({
         name: row.name,
         amount: INR(row.amount),
@@ -429,7 +429,7 @@ export async function financeAgentReply(
     context,
   );
   const answerInstructions =
-    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 3 sentences and details distinct, non-repeating, at most 4. Do not mention implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
     entityCatalog,
