@@ -224,15 +224,16 @@ function deterministicFacts(
     }
   }
   if (queries.includes('cards'))
-    facts.cards = data.cards.map((card) => ({
-      name: card.name,
-      totalDebt: INR(
-        card.outstanding + card.emis.reduce((sum, emi) => sum + emi.principalRemaining, 0),
-      ),
-      billedDue: INR(Math.max(0, card.statementAmount - card.statementPaid)),
-      dueDate: card.dueDate,
-      verified: card.detailsComplete !== false,
-    }));
+    facts.cards = {
+      columns: ['name', 'totalDebt', 'billedDue', 'dueDate', 'verified'],
+      rows: data.cards.map((card) => [
+        card.name,
+        INR(card.outstanding + card.emis.reduce((sum, emi) => sum + emi.principalRemaining, 0)),
+        INR(Math.max(0, card.statementAmount - card.statementPaid)),
+        card.dueDate,
+        card.detailsComplete !== false,
+      ]),
+    };
   if (queries.includes('cards')) {
     const billed = data.cards.reduce(
       (sum, card) => sum + Math.max(0, card.statementAmount - card.statementPaid),
@@ -245,15 +246,12 @@ function deterministicFacts(
     };
   }
   if (queries.includes('priorities'))
-    facts.priorities = paymentPriority(data)
-      .ranked.slice(0, 5)
-      .map((row) => ({
-        name: row.name,
-        amount: INR(row.amount),
-        dueDate: row.date,
-        action: row.action,
-        reasons: row.reasons,
-      }));
+    facts.priorities = {
+      columns: ['name', 'amount', 'dueDate', 'action'],
+      rows: paymentPriority(data)
+        .ranked.slice(0, 5)
+        .map((row) => [row.name, INR(row.amount), row.date, row.action]),
+    };
   if (queries.includes('spending')) {
     const report = spendingReport(data, summary.asOf.slice(0, 7));
     facts.spending = {
@@ -261,11 +259,15 @@ function deterministicFacts(
       essential: INR(report.essential),
       flexible: INR(report.flexible),
       wants: INR(report.wants),
-      categories: report.rows.map((row) => ({
-        category: row.category,
-        actual: INR(row.actual),
-        budget: row.budget === null ? null : INR(row.budget),
-      })),
+      categoryColumns: ['category', 'actual', 'budget'],
+      categories: report.rows
+        .filter((row) => row.actual > 0 || (row.budget ?? 0) > 0)
+        .slice(0, 10)
+        .map((row) => [
+          row.category,
+          INR(row.actual),
+          row.budget === null ? null : INR(row.budget),
+        ]),
     };
   }
   if (queries.includes('goals'))
