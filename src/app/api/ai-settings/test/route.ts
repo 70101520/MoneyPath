@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
 import { aiRuntime } from '@/lib/ai-settings';
+import { checkOrigin } from '@/lib/security';
 
-export async function POST() {
+export async function POST(request: Request) {
+  checkOrigin(request);
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
   const runtime = await aiRuntime(user.id);
