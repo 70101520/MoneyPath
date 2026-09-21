@@ -104,12 +104,25 @@ async function structuredResponse(
   input: string,
   runtime?: AiRuntime,
 ) {
-  const selected = runtime ?? {
-    provider: (process.env.AI_PROVIDER ?? 'ollama').toUpperCase() === 'OPENAI' ? 'OPENAI' : 'OLLAMA',
-    baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
-    apiKey: process.env.OPENAI_API_KEY,
-  } as AiRuntime;
+  const configuredProvider = (process.env.AI_PROVIDER ?? 'ollama').toUpperCase();
+  const selected = runtime ?? (configuredProvider === 'OPENAI'
+    ? {
+        provider: 'OPENAI',
+        baseUrl: 'https://api.openai.com/v1',
+        model: process.env.OPENAI_MODEL ?? 'gpt-5.5',
+        apiKey: process.env.OPENAI_API_KEY,
+      }
+    : configuredProvider === 'GPT_OSS' || configuredProvider === 'GPT-OSS'
+      ? {
+          provider: 'GPT_OSS',
+          baseUrl: process.env.GPT_OSS_BASE_URL ?? 'http://gpt-oss:8000/v1',
+          model: process.env.GPT_OSS_MODEL ?? 'openai/gpt-oss-20b',
+        }
+      : {
+          provider: 'OLLAMA',
+          baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
+          model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b-q4_K_M',
+        }) as AiRuntime;
   if (selected.provider === 'OLLAMA') {
     const baseUrl = selected.baseUrl.replace(/\/$/, '');
     let lastError: unknown;
@@ -586,5 +599,6 @@ export async function financeAgentReply(
 
 export function aiFinanceConfigured(runtime?: AiRuntime) {
   if (runtime) return runtime.provider !== 'OPENAI' || Boolean(runtime.apiKey);
-  return (process.env.AI_PROVIDER ?? 'ollama') === 'ollama' || Boolean(process.env.OPENAI_API_KEY);
+  const provider = (process.env.AI_PROVIDER ?? 'ollama').toUpperCase();
+  return provider === 'OLLAMA' || provider === 'GPT_OSS' || provider === 'GPT-OSS' || Boolean(process.env.OPENAI_API_KEY);
 }

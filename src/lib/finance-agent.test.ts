@@ -11,6 +11,26 @@ describe('general reasoning finance agent orchestration', () => {
     vi.unstubAllGlobals();
     delete process.env.OPENAI_API_KEY;
     delete process.env.AI_PROVIDER;
+    delete process.env.GPT_OSS_BASE_URL;
+    delete process.env.GPT_OSS_MODEL;
+  });
+
+  it('routes the environment GPT-OSS provider through its OpenAI-compatible endpoint', async () => {
+    process.env.AI_PROVIDER = 'GPT_OSS';
+    process.env.GPT_OSS_BASE_URL = 'http://gpt-oss.test/v1';
+    process.env.GPT_OSS_MODEL = 'gpt-oss:20b';
+    const fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({
+        queries: ['snapshot'], primaryQuery: 'snapshot', mutation: 'none',
+        accountQuery: '', cardQuery: '', needsClarification: '',
+        answer: 'Verified snapshot.', details: [],
+      }) } }] }),
+    } as Response);
+    vi.stubGlobal('fetch', fetch);
+    await financeAgentReply(sampleData('2026-09-14'), 'status batao');
+    expect(fetch.mock.calls[0][0]).toBe('http://gpt-oss.test/v1/chat/completions');
+    expect(JSON.parse(fetch.mock.calls[0][1].body).model).toBe('gpt-oss:20b');
   });
 
   it('lets the model plan while deterministic engines provide every financial number', async () => {
