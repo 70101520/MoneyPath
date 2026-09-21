@@ -85,6 +85,7 @@ describe('general reasoning finance agent orchestration', () => {
     const reply = await financeAgentReply(
       sampleData('2026-09-14'),
       'HDFC credit card ka current due 4554 update karo',
+      { cardId: 'card-1' },
     );
     expect(reply.draft).toMatchObject({
       kind: 'updateCard',

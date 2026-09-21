@@ -149,15 +149,13 @@ function findNamed<T extends { id: string; name: string }>(
   query: string,
   selected?: string,
 ) {
-  if (selected) {
-    const exact = rows.find((row) => row.id === selected);
-    if (exact) return exact;
-  }
   const words = query
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length >= 3);
-  return rows.find((row) => words.some((word) => row.name.toLowerCase().includes(word)));
+  const named = rows.find((row) => words.some((word) => row.name.toLowerCase().includes(word)));
+  if (named) return named;
+  return selected ? rows.find((row) => row.id === selected) : undefined;
 }
 
 export function extractedAmount(message: string) {
