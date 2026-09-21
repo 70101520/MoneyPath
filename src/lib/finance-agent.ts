@@ -181,6 +181,10 @@ function deterministicFacts(
   context: ChatContext,
 ) {
   const summary = calculate(data),
+    investmentValue = (data.investments ?? []).reduce(
+      (sum, investment) => sum + investment.currentValue,
+      0,
+    ),
     facts: Record<string, unknown> = {
       asOf: summary.asOf,
       requestedAmount: amount === null ? null : INR(amount),
@@ -195,6 +199,20 @@ function deterministicFacts(
         risk:
           summary.risk.score === null ? null : `${summary.risk.score}/100 ${summary.risk.label}`,
         incompleteDataCount: summary.required.length,
+      },
+      savings: {
+        accountColumns: ['name', 'kind', 'balance', 'spendable'],
+        accounts: data.accounts.map((account) => [
+          account.name,
+          account.kind,
+          INR(account.balance),
+          account.spendable,
+        ]),
+        totalBankAndCash: INR(summary.cash),
+        investmentCurrentValue: INR(investmentValue),
+        totalRecordedAccountsAndInvestments: INR(summary.cash + investmentValue),
+        safeToSpendAfterReservations:
+          summary.safe.available === null ? null : INR(summary.safe.available),
       },
     };
   if (queries.includes('cash_outflow') && amount) {
@@ -431,7 +449,7 @@ export async function financeAgentReply(
     context,
   );
   const answerInstructions =
-    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
+    'You are Balaram’s warm, direct personal finance head and semantic transaction planner. Understand unrestricted Hindi, English, Hinglish and typos. Answer naturally in the user’s language using only deterministicFacts. Copy monetary values exactly. Never invent, calculate, combine, infer or alter a number. For savings questions, use savings: distinguish each account balance, totalBankAndCash, investmentCurrentValue, combined recorded value, and safe-to-spend; never label a total as one account balance. Choose mutation none for questions, advice, future possibilities and hypotheticals, including asking whether to take a loan. Choose friend_borrowing only when money was received/borrowed and should be recorded. Choose card_balance_update when the user commands updating a named card current due, outstanding or balance; put that card in cardQuery. Other completed/record commands map to income, account_deposit, expense, card_payment or cash_advance. A proposed mutation is only a draft requiring Confirm; never claim it was saved. Give a clear yes/no/caution when asked. When safe-to-spend is zero or a shortfall exists, recommend pausing optional investments and do not recommend new loans unless necessary to prevent a more serious immediate default; explain the reason. Answer the exact question first and use the relevant provided facts. Ask clarification only when required transaction data is absent. Keep answer under 2 sentences and details distinct, non-repeating, at most 3. Do not mention implementation.';
   const answerInput = {
     recentConversation: history.slice(-8),
     entityCatalog,
