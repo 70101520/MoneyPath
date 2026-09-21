@@ -30,6 +30,16 @@ Open **http://localhost:3000**. Choose **First time here? Set up your account**,
 
 Compose waits for PostgreSQL, applies checked-in migrations, and starts the app as a non-root user. Both exposed ports default to localhost. `APP_BIND_ADDRESS` and `APP_PORT` configure the application listener; PostgreSQL stays on localhost with configurable `DB_PORT`. For production remote access, configure an HTTPS reverse proxy, update `APP_ORIGIN`, and disable insecure cookies. Keep `.env` and backups private. Losing the encryption key makes encrypted notes and card identifiers unrecoverable.
 
+## Fresh production installation
+
+Point a DNS hostname at a fresh Debian/Ubuntu server and open inbound TCP ports 80 and 443. The installer creates new secrets and an empty PostgreSQL volume, builds MoneyPath, starts the local Ollama and voice services, and configures Caddy HTTPS. It refuses to overwrite an existing installation directory.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/70101520/MoneyPath/main/install.sh | sudo MONEYPATH_DOMAIN=money.example.com sh
+```
+
+The one-time owner setup token is written to `/root/moneypath-owner-setup.txt`; delete that file after registering the owner. The microphone requires the HTTPS hostname. Ollama is active by default. Configure OpenAI later inside **AI Mode**. GPT-OSS remains an optional GPU profile and can be started with `docker compose -f compose.yaml -f compose.production.yaml --profile gpt-oss up -d gpt-oss` on a compatible NVIDIA server.
+
 The testing VM is deployed at **http://192.168.80.128:3000**. See [deployment and maintenance instructions](docs/DEPLOYMENT.md).
 
 ## Local development

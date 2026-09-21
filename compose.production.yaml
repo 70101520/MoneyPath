@@ -1,0 +1,25 @@
+services:
+  app:
+    ports: !override
+      - '127.0.0.1:${APP_PORT:-3000}:3000'
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      MONEYPATH_DOMAIN: ${MONEYPATH_DOMAIN:?Set MONEYPATH_DOMAIN in .env}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
