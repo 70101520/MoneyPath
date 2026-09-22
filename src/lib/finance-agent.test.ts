@@ -113,6 +113,17 @@ describe('general reasoning finance agent orchestration', () => {
     expect(finalRequest.instructions).toContain('Never invent');
   });
 
+  it('removes a stray structured-output brace from otherwise valid model text', async () => {
+    process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({
+      queries: ['snapshot'], primaryQuery: 'snapshot', mutation: 'none',
+      accountQuery: '', cardQuery: '', needsClarification: '',
+      answer: 'Abhi safe-to-spend amount nahi hai.}', details: [],
+    })));
+    const reply = await financeAgentReply(sampleData('2026-09-14'), 'abhi invest kar sakta hu?');
+    expect(reply.answer).toBe('Abhi safe-to-spend amount nahi hai.');
+  });
+
   it('executes requested arithmetic in the deterministic calculator before the final answer', async () => {
     process.env.OPENAI_API_KEY = 'test-key'; process.env.AI_PROVIDER = 'openai';
     const fetch = vi.fn()

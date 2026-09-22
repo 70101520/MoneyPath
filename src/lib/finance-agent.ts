@@ -434,6 +434,11 @@ function distinctDetails(answer: string, details: string[]) {
   });
 }
 
+function cleanModelText(value: string) {
+  const cleaned = value.trim();
+  return cleaned.includes('{') ? cleaned : cleaned.replace(/\}+\s*$/, '').trim();
+}
+
 function verifiedCalculations(requests: CalculationRequest[], facts: unknown) {
   const allowed = new Set(currencyValues(facts));
   return requests.flatMap((request) => {
@@ -643,8 +648,9 @@ export async function financeAgentReply(
     )) as Plan & { answer: string; details: string[]; calculations: CalculationRequest[] };
   const plan: Plan = result;
   const draft = prepareDraft(data, plan, message, context);
+  const modelAnswer = cleanModelText(result.answer);
   const falselyClaimsDraft =
-    !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(result.answer);
+    !draft.draft && /\b(draft|confirm(?:ation)?)\b/i.test(modelAnswer);
   const answer = draft.confirmation
     ? `Draft prepared — ${draft.confirmation}`
     : plan.mutation !== 'none'
@@ -652,8 +658,9 @@ export async function financeAgentReply(
         'I could not prepare this transaction. Please specify valid source and destination accounts.'
       : falselyClaimsDraft
         ? `No transaction was prepared or saved. ${result.details[0] ?? ''}`.trim()
-        : result.answer;
-  const details = (plan.primaryQuery === 'conversation' ? [] : distinctDetails(answer, result.details)).filter(
+        : modelAnswer;
+  const cleanedDetails = result.details.map(cleanModelText);
+  const details = (plan.primaryQuery === 'conversation' ? [] : distinctDetails(answer, cleanedDetails)).filter(
     (detail) =>
       !draft.draft ||
       !/\b(recorded|saved|paid|completed|add(?:ed)?\s+ho|update(?:d)?\s+ho|ho gaya)\b/i.test(
